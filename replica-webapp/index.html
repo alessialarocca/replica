@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Replica_</title>
+<link rel="stylesheet" href="design-system.css">
+<style>
+/* ── PAGE ────────────────────────────────── */
+html, body { height: 100%; }
+body {
+  font-family: 'Aeonik', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  max-width: 1440px;
+  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* hidden until connected */
+#app { display: none; flex-direction: column; flex: 1; }
+#app.show { display: flex; }
+#notConnected { display: none; flex-direction: column; align-items: center; justify-content: center; flex: 1; padding: 40px 24px; text-align: center; min-height: 100vh; }
+#notConnected.show { display: flex; }
+
+.screen { display: none; flex-direction: column; flex: 1; }
+.screen.active { display: flex; }
+.scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 var(--space-2xl) var(--space-2xl);
+}
+.scroll::-webkit-scrollbar { display: none; }
+
+/* ── TOP NAV (logo + tabs) ──────────────── */
+.topnav {
+  display: flex;
+  align-items: center;
+  padding: var(--space-xl) var(--space-2xl);
+  gap: 0;
+}
+.topnav-logo {
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+}
+.topnav-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.topnav-tabs { display: flex; padding-left: 0; }
+
+/* "Back" link inline button */
+.back-row { padding: 8px 0 var(--space-md); }
+.back-btn {
+  font: var(--type-body-small);
+  color: var(--text);
+  display: inline-flex; align-items: center; gap: 4px;
+  background: transparent; border: none; cursor: pointer; padding: 0;
+}
+
+.meta-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  font: var(--type-code-block);
+  padding: 2px 0;
+}
+.meta-row span { color: var(--text); }
+
+/* ── DEVICE CARD (left column) ───────────── */
+.device-card {
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  flex: 1;
+}
+.device-card .eyebrow {
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  color: var(--text);
+}
+.device-meta { display: flex; flex-direction: column; gap: 2px; }
+.device-illu-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-md) 0;
+  min-height: 360px;
+}
+.device-illu-img {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+}
+.device-illu-img img { display: block; width: 100%; height: auto; }
+.device-sentence-box {
+  position: absolute;
+  /* Positioned to fit inside the screen rectangle of the device PNG */
+  top: 7%;
+  left: 43.5%;
+  right: 8%;
+  bottom: 67.5%;
+  display: flex;
+  align-items: center;
+  font-family: 'Aeonik Mono', monospace;
+  font-weight: 500;
+  font-size: 11px;
+  line-height: 1.45;
+  text-transform: uppercase;
+  color: var(--text);
+  letter-spacing: 0;
+  padding: 10px 14px;
+  overflow: hidden;
+  text-align: left;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+/* ── MAIN GRID (dashboard) ────────────────── */
+.dash-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 2fr);
+  align-items: stretch;
+  gap: var(--space-md);
+}
+.dash-grid > .left-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.cat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: 1fr;
+  gap: var(--space-md);
+  min-width: 0;
+}
+@media (max-width: 960px) {
+  .dash-grid { grid-template-columns: 1fr; }
+  .cat-grid  { grid-auto-rows: auto; }
+}
+
+/* ── CATEGORY CARDS (new-style) ──────────── */
+.cat-card {
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: var(--space-lg);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  transition: box-shadow .15s;
+}
+.cat-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+.cat-card.nil { cursor: default; }
+.cat-card.nil .cat-title { color: var(--text-mid); }
+.cat-card.nil .cat-sum  { color: var(--text-mid); }
+.cat-card.dc  { box-shadow: inset 0 0 0 1px var(--accent-decontext); }
+
+.cat-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.cat-eyebrow {
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  color: var(--text);
+}
+.cat-status {
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  padding: 2px 12px;
+  background: var(--neutral-950);
+  color: var(--text-inverse);
+}
+.cat-status.dc { background: var(--accent-decontext); color: #fff; }
+.cat-status.amp { background: var(--accent-amplify); color: var(--neutral-950); }
+.cat-status.poi { background: var(--accent-poison); color: #fff; }
+.cat-status.inactive { background: transparent; color: var(--neutral-700); border: 1px solid var(--neutral-700); padding: 1px 11px; }
+
+.cat-title {
+  font: var(--type-h1);
+  letter-spacing: -0.03125em;
+  text-transform: none;
+}
+.cat-card.dc  .cat-title { color: var(--accent-decontext); }
+
+.cat-sum {
+  font: var(--type-body-small);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.cat-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cat-pill {
+  font: var(--type-sys-meta);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  padding: 4px 7px;
+  border: 1px solid var(--neutral-700);
+  color: var(--neutral-700);
+  background: transparent;
+  white-space: nowrap;
+}
+
+.cat-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  color: var(--text);
+  margin-top: auto;
+}
+
+/* ── EVENT PANEL ─────────────────────────── */
+.ev-panel {
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: var(--space-lg);
+  margin-top: var(--space-md);
+}
+.ev-eyebrow {
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  margin-bottom: var(--space-md);
+}
+.ev-title {
+  font: var(--type-h1);
+  letter-spacing: -0.03125em;
+  margin-bottom: var(--space-lg);
+}
+.chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 110px;
+  margin-bottom: 8px;
+  padding: 0 4px;
+}
+.bar {
+  flex: 1;
+  min-width: 10px;
+  min-height: 4px;
+  border-radius: 0;
+  background: var(--text-mid);
+  opacity: 0.45;
+  display: flex;
+  flex-direction: column-reverse; /* primo figlio = base, stack verso l'alto */
+}
+.bar.has-data { background: transparent; opacity: 1; }
+.bar-seg { width: 100%; min-height: 2px; }
+.bar-seg.poi { background: var(--accent-poison); }
+.bar-seg.amp { background: var(--accent-amplify); }
+.bar-seg.dc  { background: var(--accent-decontext); }
+
+.hrs { display: flex; gap: 6px; margin-bottom: var(--space-md); }
+.hr  { flex: 1; text-align: center; font: var(--type-sys-meta); color: var(--text-mid); text-transform: uppercase; letter-spacing: 0.10em; }
+
+.leg { display: flex; gap: var(--space-lg); margin-bottom: var(--space-md); flex-wrap: wrap; }
+.leg-i { display: flex; align-items: center; gap: 6px; font: var(--type-body-small); color: var(--text); }
+.leg-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+/* Event log row */
+.ev {
+  display: grid;
+  grid-template-columns: 120px 60px 1fr 80px;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) 0;
+  border-top: 1px solid var(--border);
+}
+.ev:first-of-type { border-top: none; }
+.ev-type {
+  font: var(--type-code-block);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  justify-self: start;
+}
+.ev-type.poi,
+.ev-type.amp,
+.ev-type.dc { color: var(--neutral-950); }
+.ev-int {
+  display: inline-flex;
+  align-items: center;
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  padding: 2px 9px;
+  justify-self: start;
+}
+.ev-int.poi { background: var(--accent-poison);    color: var(--color-white); }
+.ev-int.amp { background: var(--accent-amplify);   color: var(--neutral-950); }
+.ev-int.dc  { background: var(--accent-decontext); color: var(--color-white); }
+.ev-desc { font: var(--type-body-small); color: var(--text); }
+.ev-time {
+  text-align: right;
+  font: var(--type-code-block);
+  color: var(--text);
+}
+.ev-empty {
+  font: var(--type-body-small);
+  color: var(--text-mid);
+  padding: var(--space-md) 0;
+  text-align: center;
+}
+
+/* ── DETAIL SCREEN ───────────────────────── */
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 664px) minmax(0, 664px);
+  gap: var(--space-md);
+}
+@media (max-width: 1100px) {
+  .detail-grid { grid-template-columns: 1fr; }
+}
+.detail-left  { display: flex; flex-direction: column; gap: var(--space-md); }
+.detail-right { background: var(--surface); border-radius: var(--radius-sm); padding: var(--space-lg); }
+
+.detail-eyebrow {
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  margin-bottom: var(--space-md);
+}
+.detail-title {
+  font: var(--type-h1);
+  letter-spacing: -0.03125em;
+}
+.detail-summary {
+  font: var(--type-body-small);
+  margin-top: var(--space-xs);
+}
+
+/* Decontext info card */
+.dc-card {
+  background: var(--decontext-bg);
+  border: 1px solid var(--accent-decontext);
+  border-radius: var(--radius-sm);
+  padding: var(--space-lg);
+}
+.dc-card .dc-title {
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  color: var(--accent-decontext);
+  margin-bottom: var(--space-xs);
+}
+.dc-card .dc-body {
+  font: var(--type-body-small);
+  color: var(--text);
+}
+
+/* Metrics block */
+.metrics .metric-row {
+  display: grid;
+  grid-template-columns: 120px 1fr auto;
+  gap: var(--space-md);
+  padding: var(--space-md) 0;
+  border-top: 1px solid var(--border);
+  align-items: flex-start;
+}
+.metrics .metric-row:first-of-type { border-top: none; }
+.metric-key {
+  font: var(--type-code-block);
+  font-weight: 500;
+  color: var(--text);
+}
+.metric-desc {
+  font: var(--type-body-small);
+  color: var(--text);
+}
+.metric-val {
+  font: var(--type-code-block);
+  color: var(--text);
+  text-align: right;
+}
+
+/* Signal entries on the right */
+.signal-eyebrow {
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  margin-bottom: var(--space-md);
+}
+.signal-row {
+  display: grid;
+  grid-template-columns: 160px 1fr 60px;
+  gap: var(--space-md);
+  padding: var(--space-md) 0;
+  border-top: 1px solid var(--border);
+}
+.signal-row:first-of-type { border-top: none; }
+.signal-tag {
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  color: var(--text);
+  justify-self: start;
+}
+.signal-tag.is-poi,
+.signal-tag.is-amp,
+.signal-tag.is-dc {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 12px;
+}
+.signal-tag.is-poi { background: var(--accent-poison);    color: var(--color-white); }
+.signal-tag.is-amp { background: var(--accent-amplify);   color: var(--neutral-950); }
+.signal-tag.is-dc  { background: var(--accent-decontext); color: var(--color-white); }
+.signal-desc { font: var(--type-body-small); color: var(--text); }
+.signal-time { font: var(--type-sys-meta); color: var(--text-mid); text-align: right; }
+
+/* ── MEMORY / PROFILE (legacy panes) ─────── */
+.body-desc { padding: 0 0 var(--space-md); font: var(--type-body-small); color: var(--text); }
+.toggle {
+  margin-bottom: var(--space-md);
+  background: var(--neutral-950);
+  display: inline-flex;
+  padding: 4px;
+  gap: 4px;
+}
+.tog {
+  padding: 8px 18px;
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  color: var(--text-mid);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.tog.on { background: var(--color-white); color: var(--text); }
+
+.mem-card {
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-md);
+}
+.mem-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md); }
+.mem-date { font: var(--type-code-block); }
+.nav-btns { display: flex; gap: 8px; }
+.nav-btn {
+  width: 32px; height: 32px;
+  background: var(--neutral-300);
+  color: var(--text);
+  border: none;
+  cursor: pointer;
+  font: var(--type-code-block);
+}
+.nav-btn:disabled { opacity: .3; cursor: default; }
+.dot-row { display: flex; gap: 16px; margin-bottom: var(--space-md); flex-wrap: wrap; }
+.mem-sent { font: var(--type-code-block); text-transform: uppercase; line-height: 1.85; }
+.mem-empty {
+  font: var(--type-body-small);
+  color: var(--text-mid);
+  padding: var(--space-md) 0;
+  text-align: center;
+}
+
+/* ── Save current sentence card ─────────────── */
+.mem-save {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-xs);
+}
+.mem-save-left { flex: 1; min-width: 0; }
+.mem-save-eyebrow {
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  color: var(--text);
+  margin-bottom: var(--space-xs);
+}
+.mem-save-sentence {
+  font: var(--type-code-block);
+  text-transform: uppercase;
+  color: var(--text);
+  line-height: 1.5;
+}
+.mem-save-btn {
+  flex-shrink: 0;
+  background: var(--neutral-950);
+  color: var(--color-white);
+  border: none;
+  padding: 12px 18px;
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background .15s;
+}
+.mem-save-btn:hover { background: var(--neutral-700); }
+.mem-save-btn:disabled { opacity: 0.4; cursor: default; }
+.mem-save-status {
+  font: var(--type-sys-meta);
+  text-transform: uppercase;
+  color: var(--text-mid);
+  letter-spacing: 0.18em;
+  min-height: 14px;
+  padding: 0 var(--space-md) var(--space-md);
+}
+.mem-save-status.ok { color: var(--color-success); }
+
+/* ── Week picker (calendar) ─────────────────── */
+.mem-week-picker {
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: var(--space-md) var(--space-lg);
+  margin-bottom: var(--space-md);
+}
+.mem-week-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+.mem-week-label {
+  flex: 1;
+  font: var(--type-code-block);
+  color: var(--text);
+}
+.mem-week-today {
+  background: transparent;
+  border: 1px solid var(--neutral-700);
+  color: var(--neutral-700);
+  padding: 6px 12px;
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.mem-week-today:hover { background: var(--neutral-700); color: var(--surface); }
+.mem-week-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.mem-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: var(--space-sm) 4px;
+  background: transparent;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  color: var(--text);
+  transition: background .15s, border-color .15s;
+}
+.mem-day:hover { border-color: var(--neutral-700); }
+.mem-day.has-snap { border-color: var(--neutral-950); }
+.mem-day.is-today { background: var(--neutral-300); }
+.mem-day.is-selected { background: var(--neutral-950); color: var(--color-white); border-color: var(--neutral-950); }
+.mem-day.is-future { opacity: 0.35; cursor: default; pointer-events: none; }
+.mem-day-dow {
+  font: var(--type-sys-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+.mem-day-num {
+  font: var(--type-h3);
+  letter-spacing: -0.02em;
+}
+
+.wk-entry {
+  display: flex;
+  gap: var(--space-md);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-md);
+}
+.wk-day-n { font: var(--type-h1); letter-spacing: -0.03125em; }
+.wk-day-m { font: var(--type-sys-meta); text-transform: uppercase; color: var(--text-mid); margin-top: 4px; }
+.wk-right { flex: 1; display: flex; flex-direction: column; gap: var(--space-sm); }
+.wk-sent  { font: var(--type-code-block); text-transform: uppercase; }
+.wk-dots  { display: flex; gap: var(--space-md); flex-wrap: wrap; }
+.wk-del {
+  align-self: flex-start;
+  flex-shrink: 0;
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Aeonik Mono', monospace;
+  font-size: 18px; line-height: 1;
+  background: var(--neutral-950);
+  color: var(--color-white);
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background .15s;
+}
+.wk-del:hover { background: var(--color-error); }
+
+.prof-stack {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  align-items: start;
+  gap: var(--space-md);
+}
+.prof-col { display: flex; flex-direction: column; gap: var(--space-md); }
+@media (max-width: 720px) { .prof-stack { grid-template-columns: 1fr; } }
+.card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+.p-edit {
+  font: var(--type-code-block);
+  text-align: right;
+  background: transparent;
+  border: 1px solid var(--neutral-950);
+  padding: 4px 8px;
+  width: 50%;
+  color: var(--text);
+  outline: none;
+}
+.p-edit:focus { border-color: var(--color-info); }
+
+.p-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) 0;
+  border-top: 1px solid var(--border);
+}
+.p-row:first-of-type { border-top: none; padding-top: 0; }
+.p-row:last-of-type { padding-bottom: 0; }
+.p-k { font: var(--type-body-base); }
+.p-v { font: var(--type-code-block); color: var(--text-mid); }
+.p-v-amp { color: var(--accent-amplify); }
+.p-v-poi { color: var(--accent-poison); }
+.p-v-dc  { color: var(--accent-decontext); }
+
+/* Pref controls — toggle switch + time input */
+.pref-right { display: inline-flex; align-items: center; gap: var(--space-sm); }
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 36px; height: 20px;
+  flex-shrink: 0;
+}
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch .slider {
+  position: absolute; inset: 0; cursor: pointer;
+  background: var(--border);
+  border-radius: 0;
+  transition: background .18s;
+}
+.switch .slider::before {
+  content: '';
+  position: absolute; left: 2px; top: 2px;
+  width: 16px; height: 16px;
+  background: var(--color-white);
+  border-radius: 0;
+  transition: transform .18s;
+}
+.switch input:checked + .slider { background: var(--neutral-950); }
+.switch input:checked + .slider::before { transform: translateX(16px); }
+.p-time {
+  font: var(--type-code-block);
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--neutral-950);
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.p-time:focus { outline: none; border-color: var(--color-info); }
+.p-time:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.leg-row {
+  display: flex;
+  gap: 12px;
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border);
+  align-items: flex-start;
+}
+.leg-row:last-child { border-bottom: none; }
+.leg-cname { font: var(--type-sys-header); text-transform: uppercase; min-width: 130px; flex-shrink: 0; }
+.leg-cdesc { font: var(--type-body-small); color: var(--text); }
+
+/* Danger-zone card: same ds-card shell + red accent border + red title/buttons */
+.ds-card.dz { background: var(--surface); border: 1px solid var(--color-error); }
+.dz-t { font: var(--type-sys-header); text-transform: uppercase; color: var(--color-error); margin-bottom: var(--space-md); }
+.dz-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) 0;
+  border-top: 1px solid var(--border);
+}
+.dz-row:first-of-type { border-top: none; padding-top: 0; }
+.dz-row:last-of-type { padding-bottom: 0; }
+.dz-l { font: var(--type-body-base); }
+.dz-btn {
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  padding: 6px 14px;
+  background: var(--color-error);
+  border: none;
+  color: var(--color-white);
+  cursor: pointer;
+  transition: background .15s;
+}
+.dz-btn:hover { background: #8A1414; }
+
+/* info icon → modal */
+.info-i {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; border-radius: 0;
+  background: transparent; color: var(--neutral-950);
+  border: 1px solid var(--neutral-950);
+  font: var(--type-sys-meta-sm); font-weight: 700;
+  cursor: pointer; margin-left: 4px; vertical-align: middle;
+}
+.modal-ov {
+  position: fixed; inset: 0; background: rgba(10,10,10,.4);
+  display: none; align-items: center; justify-content: center;
+  z-index: 1000; padding: 24px;
+}
+.modal-ov.on { display: flex; }
+.modal {
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: var(--space-lg);
+  max-width: 380px; width: 100%;
+}
+.modal-t { font: var(--type-h3); margin-bottom: var(--space-sm); }
+.modal-b { font: var(--type-body-small); color: var(--text); margin-bottom: var(--space-lg); }
+.modal-x {
+  width: 100%; padding: 12px;
+  background: var(--neutral-950); color: #fff;
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* ── NOT CONNECTED ───────────────────────── */
+.nc-logo { font: var(--type-sys-header); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--space-xl); }
+.nc-h { font: var(--type-h2); margin-bottom: var(--space-xs); }
+.nc-p { font: var(--type-body-small); color: var(--text); line-height: 1.6; margin-bottom: var(--space-lg); max-width: 360px; }
+.nc-steps { list-style: none; width: 100%; max-width: 360px; margin-bottom: var(--space-lg); }
+.nc-steps li { font: var(--type-body-small); color: var(--text); padding: 10px 0; border-bottom: 1px solid var(--border); display: flex; gap: 14px; text-align: left; }
+.nc-n { font: var(--type-sys-meta); color: var(--text-mid); min-width: 18px; }
+
+/* sbar text under top nav */
+.sbar { font: var(--type-sys-meta); text-transform: uppercase; color: var(--text-mid); padding: 0 0 var(--space-xs); }
+
+.section-eyebrow {
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  color: var(--text);
+  padding: var(--space-md) 0 var(--space-sm);
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- TOP NAV (logo + tabs) -->
+  <div class="topnav" id="topnav">
+    <div class="topnav-logo"><img src="img/icon48.png" alt="Replica_"></div>
+    <div class="topnav-tabs">
+      <button class="ds-tab is-active" id="nv-device"  onclick="switchTab('device')">DEVICE</button>
+      <button class="ds-tab"            id="nv-memory"  onclick="switchTab('memory')">MEMORY</button>
+      <button class="ds-tab"            id="nv-profile" onclick="switchTab('profile')">PROFILE</button>
+    </div>
+  </div>
+
+  <!-- NOT CONNECTED -->
+  <div id="notConnected">
+    <div class="nc-logo">Replica_</div>
+    <div class="nc-h">Extension not detected</div>
+    <p class="nc-p">Install the Replica_ extension in Chrome and reload this page. The dashboard reads your live Data Double from the extension.</p>
+    <ol class="nc-steps">
+      <li><span class="nc-n">01</span><span>Open <code>chrome://extensions</code></span></li>
+      <li><span class="nc-n">02</span><span>Enable Developer mode</span></li>
+      <li><span class="nc-n">03</span><span>Load unpacked → <code>replica-extension</code></span></li>
+      <li><span class="nc-n">04</span><span>Reload this page</span></li>
+    </ol>
+  </div>
+
+  <!-- APP -->
+  <div id="app">
+
+    <!-- DEVICE -->
+    <div class="screen active" id="scr-device">
+      <div class="scroll">
+        <div class="sbar" id="sbarTxt">live</div>
+
+        <div class="dash-grid">
+          <!-- LEFT: Single device card with meta on top + illustration filling the rest -->
+          <div class="left-col">
+            <div class="device-card">
+              <div class="eyebrow">DEVICE</div>
+              <div class="device-meta">
+                <div class="meta-row"><span>Status</span><span id="mStatus">Synced with device</span></div>
+                <div class="meta-row"><span>Last compilation:</span><span id="mLast">—</span></div>
+                <div class="meta-row"><span>Events:</span><span id="mPts">—</span></div>
+              </div>
+              <div class="device-illu-wrap">
+                <div class="device-illu-img">
+                  <img src="img/device_illustration.png" alt="Device">
+                  <div class="device-sentence-box" id="sentenceEl">Loading…</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: 6 category cards in 2×3 equal-height grid -->
+          <div class="cat-grid" id="catGrid"></div>
+        </div>
+
+        <!-- Event panel -->
+        <div class="ev-panel">
+          <div class="ev-eyebrow">LIVE EVENT STREAM</div>
+          <div class="ev-title">Actions today by hour</div>
+          <div class="chart" id="bars"></div>
+          <div class="hrs" id="hrs"></div>
+          <div class="leg">
+            <div class="leg-i"><div class="leg-dot" style="background:var(--accent-amplify)"></div>amplify</div>
+            <div class="leg-i"><div class="leg-dot" style="background:var(--accent-poison)"></div>poison</div>
+            <div class="leg-i"><div class="leg-dot" style="background:var(--accent-decontext)"></div>decontextualised</div>
+          </div>
+          <div id="evList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DETAIL -->
+    <div class="screen" id="scr-detail">
+      <div class="scroll">
+        <div class="back-row"><button class="back-btn" onclick="goBack()">‹ Back</button></div>
+        <div id="detailBody"></div>
+      </div>
+    </div>
+
+    <!-- MEMORY -->
+    <div class="screen" id="scr-memory">
+      <div class="scroll">
+        <div class="section-eyebrow">SESSION MEMORY</div>
+        <div class="body-desc">A static reflection of the algorithmic session. Snapshots are compiled automatically every day at 18:30, or saved manually below.</div>
+
+        <!-- Save current sentence -->
+        <div class="mem-save">
+          <div class="mem-save-left">
+            <div class="mem-save-eyebrow">CURRENT SENTENCE</div>
+            <div class="mem-save-sentence" id="memCurrentSent">—</div>
+          </div>
+          <button class="mem-save-btn" id="btnSaveSnap">SAVE TO MEMORY</button>
+        </div>
+        <div class="mem-save-status" id="memSaveStatus"></div>
+
+        <!-- Week picker -->
+        <div class="mem-week-picker">
+          <div class="mem-week-nav">
+            <button class="nav-btn" id="wPrev">←</button>
+            <span class="mem-week-label" id="wRange">—</span>
+            <button class="nav-btn" id="wNext">→</button>
+            <button class="mem-week-today" id="wToday">TODAY</button>
+          </div>
+          <div class="mem-week-days" id="wDays"></div>
+        </div>
+
+        <div id="wList"></div>
+      </div>
+    </div>
+
+    <!-- PROFILE -->
+    <div class="screen" id="scr-profile">
+      <div class="scroll prof-stack">
+        <div class="prof-col">
+          <div class="ds-card">
+            <div class="card-head">
+              <div class="cat-eyebrow">PERSONAL INFORMATION</div>
+              <button class="mem-save-btn" id="btnEditProfile">EDIT PROFILE</button>
+            </div>
+            <div class="p-row">
+              <span class="p-k">Username</span>
+              <span class="p-v" id="pUsername">—</span>
+            </div>
+            <div class="p-row">
+              <span class="p-k">Device ID</span>
+              <span class="p-v" id="pDeviceId" style="font-size:11px;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</span>
+            </div>
+          </div>
+
+          <div class="ds-card">
+            <div class="cat-eyebrow" style="margin-bottom:var(--space-md)">SUBJECT IDENTIFICATION</div>
+            <div class="p-row"><span class="p-k">Sessions tracked</span><span class="p-v" id="pSessions">—</span></div>
+            <div class="p-row"><span class="p-k">Total data points</span><span class="p-v" id="pPoints">—</span></div>
+            <div class="p-row"><span class="p-k">First seen</span><span class="p-v" id="pFirst">—</span></div>
+            <div class="p-row"><span class="p-k">Amplifications</span><span class="p-v p-v-amp" id="pAmpCount">0</span></div>
+            <div class="p-row"><span class="p-k">Poisonings</span><span class="p-v p-v-poi" id="pPoiCount">0</span></div>
+            <div class="p-row"><span class="p-k">Decontextualisations</span><span class="p-v p-v-dc" id="pDcCount">0</span></div>
+          </div>
+        </div>
+
+        <div class="prof-col">
+          <div class="ds-card">
+            <div class="cat-eyebrow" style="margin-bottom:var(--space-md)">DATA CATEGORIES</div>
+            <div class="leg-row"><span class="leg-cname">Bio-demographic</span><span class="leg-cdesc">Age, health patterns, medical queries.</span></div>
+            <div class="leg-row"><span class="leg-cname">Geographic</span><span class="leg-cdesc">IP location, commute, local intent.</span></div>
+            <div class="leg-row"><span class="leg-cname">Professional</span><span class="leg-cdesc">Job role, platforms, skills.</span></div>
+            <div class="leg-row"><span class="leg-cname">Economic</span><span class="leg-cdesc">Income signals, spending, risk.</span></div>
+            <div class="leg-row"><span class="leg-cname">Socio-cultural</span><span class="leg-cdesc">Values, affiliations, communities.</span></div>
+            <div class="leg-row"><span class="leg-cname">Psycho-beh.</span><span class="leg-cdesc">Emotional traits, habits, attention.</span></div>
+          </div>
+
+          <div class="ds-card">
+            <div class="cat-eyebrow" style="margin-bottom:var(--space-md)">APP PREFERENCES</div>
+            <div class="p-row">
+              <span class="p-k">Decontextualisation alerts <span class="info-i" onclick="openModal('decontext')">i</span></span>
+              <label class="switch"><input type="checkbox" id="prefDecontextAlerts"><span class="slider"></span></label>
+            </div>
+            <div class="p-row">
+              <span class="p-k">Daily snapshot</span>
+              <input type="time" id="prefSnapshotTime" class="p-time" value="18:00">
+            </div>
+          </div>
+
+          <div class="ds-card dz">
+            <div class="dz-t">⚠ Irreversible actions</div>
+            <div class="dz-row"><span class="dz-l">Reset all data</span><button class="dz-btn" id="btnReset">Reset</button></div>
+            <div class="dz-row"><span class="dz-l">Reset memory quotes</span><button class="dz-btn" id="btnResetSnaps">Reset</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="modal-ov" id="modalOv" onclick="if(event.target===this)closeModal()">
+  <div class="modal"><div class="modal-t" id="modalT"></div><div class="modal-b" id="modalB"></div>
+  <button class="modal-x" onclick="closeModal()">Got it</button></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

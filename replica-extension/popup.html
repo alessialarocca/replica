@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Replica_</title>
+  <style>
+    @font-face { font-family:'Aeonik'; src:url('fonts/AeonikTRIAL-Regular.otf') format('opentype'); font-weight:400; }
+    @font-face { font-family:'Aeonik'; src:url('fonts/AeonikTRIAL-Medium.otf') format('opentype'); font-weight:500; }
+    @font-face { font-family:'Aeonik'; src:url('fonts/AeonikTRIAL-Bold.otf') format('opentype'); font-weight:700; }
+    @font-face { font-family:'Aeonik Mono'; src:url('fonts/AeonikMonoTRIAL-Regular.otf') format('opentype'); font-weight:400; }
+    @font-face { font-family:'Aeonik Mono'; src:url('fonts/AeonikMonoTRIAL-Medium.otf') format('opentype'); font-weight:500; }
+
+    :root {
+      /* new-style tokens */
+      --neutral-50:   #F5F5F5;
+      --neutral-300:  #C4C4C4;
+      --neutral-700:  #404040;
+      --neutral-950:  #0A0A0A;
+      --color-white:  #FFFFFF;
+      --color-metal:  #828782;
+      --border:       #D4D4D4;
+      --accent-amplify:   #1DFF5D;
+      --accent-poison:    #FF5E1F;
+      --accent-decontext: #5E1FFF;
+
+      /* Semantic — UI feedback (not data state) */
+      --color-error:      #B91C1C;
+      --color-success:    #047857;
+      --color-warning:    #B45309;
+      --color-info:       #0369A1;
+
+      --bg:       var(--neutral-300);
+      --surface:  var(--neutral-50);
+      --text:     var(--neutral-950);
+      --text-mid: var(--color-metal);
+
+      --radius-sm: 8px;
+      --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { width: 375px; min-height: 480px; background: var(--bg); font-family: 'Aeonik', sans-serif; font-size: 14px; -webkit-font-smoothing: antialiased; color: var(--text); padding: var(--space-sm); }
+
+    /* topnav (logo + tabs) */
+    .topnav { display: flex; align-items: center; gap: 0; margin-bottom: var(--space-sm); }
+    .topnav-logo {
+      width: 32px; height: 32px;
+      background: var(--neutral-950); color: var(--neutral-50);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Aeonik Mono', monospace; font-weight: 700; font-size: 14px;
+    }
+    .tab {
+      --cut: 16px;
+      height: 32px; padding: 0 18px;
+      font-family: 'Aeonik Mono', monospace; font-size: 11px; text-transform: uppercase;
+      background: var(--color-white); color: var(--neutral-950);
+      clip-path: polygon(
+        var(--cut) 0,
+        100% 0,
+        100% calc(100% - var(--cut)),
+        calc(100% - var(--cut)) 100%,
+        0 100%,
+        0 var(--cut)
+      );
+      margin-left: calc(var(--cut) * -1);
+      display: inline-flex; align-items: center;
+    }
+    .tab:first-of-type { margin-left: 0; }
+    .tab.is-active {
+      background: var(--neutral-950);
+      color: var(--color-white);
+      position: relative;
+      z-index: 1;
+    }
+    .live { margin-left: auto; display: flex; align-items: center; gap: 5px; font-family: 'Aeonik Mono', monospace; font-size: 10px; letter-spacing: 0.04em; color: var(--text); text-transform: uppercase; }
+    .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-amplify); animation: pulse 2.2s ease-in-out infinite; }
+    .live-dot.alert { background: var(--accent-decontext); animation: none; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+    /* sentence card */
+    .sentence-block {
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      padding: var(--space-md);
+      margin-bottom: var(--space-sm);
+    }
+    .sentence-eyebrow {
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--text-mid);
+      margin-bottom: var(--space-xs);
+    }
+    .sentence-mono { font-family: 'Aeonik Mono', monospace; font-size: 12px; line-height: 1.65; color: var(--text); text-transform: uppercase; }
+    .voc { display: inline; }
+    .voc.unresolved .vb, .voc.unresolved .vi { color: var(--text-mid); }
+    .voc.decontext .vb, .voc.decontext .vi { color: var(--accent-decontext); }
+    .voc.poisoned  .vb, .voc.poisoned  .vi { color: var(--accent-poison); }
+    .voc.amplified .vb, .voc.amplified .vi { color: var(--accent-amplify); }
+
+    /* section head */
+    .sec {
+      padding: var(--space-sm) 4px var(--space-xs);
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--text);
+    }
+
+    /* cat grid */
+    .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-xs); }
+    .island {
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      padding: var(--space-sm);
+      cursor: pointer;
+      display: flex; flex-direction: column;
+      gap: 6px;
+      min-height: 120px;
+      transition: opacity .1s;
+    }
+    .island:active { opacity: 0.85; }
+    .island.nil { cursor: default; opacity: 0.55; }
+    .island.dc  { box-shadow: inset 0 0 0 1px var(--accent-decontext); }
+    .isl-head { display: flex; align-items: flex-start; justify-content: space-between; }
+    .isl-lbl { font-family: 'Aeonik Mono', monospace; font-size: 10px; text-transform: uppercase; color: var(--text); }
+    .isl-val { font-family: 'Aeonik Mono', monospace; font-weight: 500; font-size: 18px; line-height: 1.2; letter-spacing: -0.02em; color: var(--text); }
+    .island.nil .isl-val { font-size: 12px; color: var(--text-mid); }
+    .island.dc  .isl-val { color: var(--accent-decontext); }
+    .isl-badge {
+      display: inline-flex; align-items: center;
+      font-family: 'Aeonik Mono', monospace; font-size: 10px;
+      text-transform: uppercase;
+      padding: 1px 8px;
+      background: var(--neutral-950); color: var(--neutral-50);
+    }
+    .isl-badge.poi { background: var(--accent-poison);    color: #fff; }
+    .isl-badge.amp { background: var(--accent-amplify);   color: var(--neutral-950); }
+    .isl-badge.dc  { background: var(--accent-decontext); color: #fff; }
+    .isl-badge.inactive { background: transparent; color: var(--text-mid); border: 1px solid var(--border); padding: 0 7px; }
+
+    /* arduino panel */
+    .ard-panel {
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      padding: var(--space-md);
+      margin-top: var(--space-sm);
+    }
+    .ard-label { font-family: 'Aeonik Mono', monospace; font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text); margin-bottom: var(--space-xs); display: flex; align-items: center; gap: 6px; }
+    .ard-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-mid); flex-shrink: 0; }
+    .ard-dot.on  { background: var(--color-success); }
+    .ard-dot.err { background: var(--color-error); }
+    .ard-row { display: flex; gap: 6px; align-items: center; }
+    .ard-input { flex: 1; font-family: 'Aeonik Mono', monospace; font-size: 11px; background: var(--bg); border: 1px solid var(--border); border-radius: 0; padding: 8px 10px; color: var(--text); outline: none; letter-spacing: 0.04em; }
+    .ard-input::placeholder { color: var(--text-mid); }
+    .ard-btn { font-family: 'Aeonik Mono', monospace; font-size: 11px; text-transform: uppercase; background: var(--neutral-950); color: var(--neutral-50); border: none; border-radius: 0; padding: 8px 13px; cursor: pointer; white-space: nowrap; transition: opacity .1s; }
+    .ard-btn:active { opacity: 0.7; }
+    .ard-btn.connected { background: var(--bg); color: var(--text-mid); border: 1px solid var(--border); }
+    .ard-status { font-family: 'Aeonik Mono', monospace; font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; margin-top: 6px; min-height: 12px; }
+    .ard-status.ok  { color: var(--color-success); }
+    .ard-status.err { color: var(--color-error); }
+    .ard-status.mid { color: var(--text-mid); }
+
+    /* footer */
+    .footer { padding: var(--space-sm) 4px 0; display: flex; align-items: center; justify-content: space-between; }
+    .footer-link { font-family: 'Aeonik Mono', monospace; font-size: 10px; text-transform: uppercase; color: var(--text-mid); background: none; border: none; cursor: pointer; padding: 0; transition: color .1s; }
+    .footer-link:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+
+  <div class="sentence-block">
+    <div class="sentence-eyebrow">CURRENT PROFILE</div>
+    <div class="sentence-mono" id="sentenceEl">Loading...</div>
+  </div>
+
+  <div class="sec">DATA CATEGORIES</div>
+  <div class="cat-grid" id="catGrid"></div>
+
+  <div class="ard-panel">
+    <div class="ard-label">
+      <div class="ard-dot" id="ardDot"></div>
+      PHYSICAL DEVICE
+    </div>
+    <div class="ard-row">
+      <input class="ard-input" id="ardIp" type="text" placeholder="192.168.x.x" maxlength="15" spellcheck="false">
+      <button class="ard-btn" id="ardBtn">Connect</button>
+    </div>
+    <div class="ard-status mid" id="ardStatus"></div>
+  </div>
+
+  <div class="footer">
+    <button class="footer-link" id="btnDash">Open dashboard ↗</button>
+    <button class="footer-link" id="btnReset">Reset</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,246 @@
+/* ═══════════════════════════════════════════════
+   REPLICA_ — Design System
+   Aligned to Figma "new-style" section
+   (file: product-ui · CPUfxfrzfCAbRAGqeuyZNK)
+   ═══════════════════════════════════════════════ */
+
+/* ── @font-face ──────────────────────────────── */
+
+@font-face {
+  font-family: 'Aeonik';
+  src: url('fonts/AeonikTRIAL-Light.otf') format('opentype');
+  font-weight: 300; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Aeonik';
+  src: url('fonts/AeonikTRIAL-Regular.otf') format('opentype');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Aeonik';
+  src: url('fonts/AeonikTRIAL-Medium.otf') format('opentype');
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Aeonik';
+  src: url('fonts/AeonikTRIAL-SemiBold.otf') format('opentype');
+  font-weight: 600; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Aeonik';
+  src: url('fonts/AeonikTRIAL-Bold.otf') format('opentype');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Aeonik';
+  src: url('fonts/AeonikTRIAL-Black.otf') format('opentype');
+  font-weight: 900; font-style: normal; font-display: swap;
+}
+
+@font-face {
+  font-family: 'Aeonik Mono';
+  src: url('fonts/AeonikMonoTRIAL-Light.otf') format('opentype');
+  font-weight: 300; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Aeonik Mono';
+  src: url('fonts/AeonikMonoTRIAL-Regular.otf') format('opentype');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Aeonik Mono';
+  src: url('fonts/AeonikMonoTRIAL-Medium.otf') format('opentype');
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Aeonik Mono';
+  src: url('fonts/AeonikMonoTRIAL-SemiBold.otf') format('opentype');
+  font-weight: 600; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Aeonik Mono';
+  src: url('fonts/AeonikMonoTRIAL-Bold.otf') format('opentype');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+
+/* ── Color tokens ────────────────────────────── */
+
+:root {
+  /* Neutral scale (Figma) */
+  --neutral-50:         #F5F5F5;   /* bg/surface — cards */
+  --neutral-300:        #C4C4C4;   /* bg/canvas  — page background */
+  --neutral-700:        #404040;
+  --neutral-950:        #0A0A0A;   /* text/primary */
+
+  --color-white:        #FFFFFF;
+  --color-surface-soft: #E6E8E6;   /* legacy neutral/10 */
+  --color-metal:        #828782;   /* secondary text, placeholders */
+  --color-black:        #0A0A0A;
+  --border-default:     #D4D4D4;
+
+  /* Accent (data states) */
+  --color-green:        #1DFF5D;
+  --color-purple:       #5E1FFF;
+  --color-orange:       #FF5E1F;
+
+  /* Semantic aliases (new-style) */
+  --bg:                 var(--neutral-300);   /* page bg */
+  --surface:            var(--neutral-50);    /* card bg */
+  --surface-inverse:    var(--neutral-950);
+  --border:             var(--border-default);
+  --text:               var(--neutral-950);
+  --text-inverse:       var(--neutral-50);
+  --text-mid:           var(--color-metal);
+  --text-dim:           #B0B2B0;
+
+  --accent-amplify:     var(--color-green);
+  --accent-poison:      var(--color-orange);
+  --accent-decontext:   var(--color-purple);
+
+  --amplify-bg:         rgba(29,255,93,0.10);
+  --poison-bg:          rgba(255,94,31,0.10);
+  --decontext-bg:       #EFE8FF;   /* data/decontext-bg from Figma */
+  --decontext-border:   rgba(94,31,255,0.25);
+
+  /* Semantic — UI feedback (not data state) */
+  --color-error:        #B91C1C;
+  --color-success:      #047857;
+  --color-warning:      #B45309;
+  --color-info:         #0369A1;
+  --error-bg:           #FECACA;
+
+  /* Spacing scale (Figma space tokens) */
+  --space-2xs:  4px;
+  --space-xs:   8px;
+  --space-sm:  12px;
+  --space-md:  16px;
+  --space-lg:  24px;
+  --space-xl:  32px;
+  --space-2xl: 48px;
+
+  /* Radii (Figma radius tokens) */
+  --radius-zero: 0;
+  --radius-sm:   8px;   /* default card radius in new-style */
+  --radius-pill: 999px;
+
+  /* Border stroke */
+  --stroke: 1px;
+}
+
+/* ── Typography tokens ───────────────────────── */
+/* In new-style, headings use Aeonik Mono Medium */
+
+:root {
+  /* Display (kept for legacy) */
+  --type-display-hero:        700 64px/1.10 'Aeonik', sans-serif;
+  --type-display-data-large:  400 56px/1.10 'Aeonik Mono', monospace;
+
+  /* Heading — Aeonik Mono */
+  --type-h1:  500 32px/1.20 'Aeonik Mono', monospace;     /* letter-spacing -1px */
+  --type-h2:  500 24px/1.25 'Aeonik Mono', monospace;
+  --type-h3:  500 18px/1.30 'Aeonik Mono', monospace;
+
+  /* Body — Aeonik sans */
+  --type-body-large:  400 18px/1.50 'Aeonik', sans-serif;
+  --type-body-base:   400 16px/1.50 'Aeonik', sans-serif;
+  --type-body-small:  400 14px/1.50 'Aeonik', sans-serif;
+
+  /* System (Aeonik Mono) */
+  --type-code-block:   400 14px/1.50 'Aeonik Mono', monospace;
+  --type-sys-header:   400 12px/1.30 'Aeonik Mono', monospace;
+  --type-sys-meta:     400 10px/1.30 'Aeonik Mono', monospace;   /* uppercase */
+  --type-sys-meta-sm:  400  8px/1.30 'Aeonik Mono', monospace;   /* uppercase */
+}
+
+/* ── Utility classes ─────────────────────────── */
+
+.type-display-hero       { font: var(--type-display-hero); }
+.type-display-data-large { font: var(--type-display-data-large); }
+.type-h1                 { font: var(--type-h1); letter-spacing: -0.03125em; }
+.type-h2                 { font: var(--type-h2); }
+.type-h3                 { font: var(--type-h3); }
+.type-body-large         { font: var(--type-body-large); }
+.type-body-base          { font: var(--type-body-base); }
+.type-body-small         { font: var(--type-body-small); }
+.type-code-block         { font: var(--type-code-block); }
+.type-sys-header         { font: var(--type-sys-header); text-transform: uppercase; letter-spacing: 0.00em; }
+.type-sys-meta           { font: var(--type-sys-meta);   text-transform: uppercase; letter-spacing: 0.20em; }
+.type-sys-meta-sm        { font: var(--type-sys-meta-sm); text-transform: uppercase; letter-spacing: 0.20em; }
+
+/* ── Reset & base ────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+button { font-family: inherit; cursor: pointer; border: none; background: none; -webkit-tap-highlight-color: transparent; }
+
+/* ── Reusable atoms (new-style) ──────────────── */
+
+/* Card surface — the box used everywhere */
+.ds-card {
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: var(--space-lg);
+}
+
+/* CATEGORY / META eyebrow label */
+.ds-eyebrow {
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  letter-spacing: 0.00em;
+  color: var(--text);
+}
+
+/* STATUS chip (dark by default) */
+.ds-status {
+  display: inline-flex;
+  align-items: center;
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  letter-spacing: 0.00em;
+  padding: 2px 10px;
+  border-radius: var(--radius-zero);
+  background: var(--neutral-950);
+  color: var(--text-inverse);
+}
+.ds-status.is-poison    { background: var(--accent-poison);    color: var(--color-white); }
+.ds-status.is-amplify   { background: var(--accent-amplify);   color: var(--neutral-950); }
+.ds-status.is-decontext { background: var(--accent-decontext); color: var(--color-white); }
+
+/* Metric pill — rectangle outline with mono label */
+.ds-pill {
+  display: inline-flex;
+  align-items: center;
+  font: var(--type-sys-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.20em;
+  padding: 6px 10px;
+  border: var(--stroke) solid var(--border);
+  border-radius: var(--radius-zero);
+  color: var(--text);
+  background: transparent;
+}
+
+/* Navbar tab — rectangle with 45° diagonal cuts at top-left and bottom-right.
+   Cut size equals half the tab height so the diagonal is true 45°.
+   Tabs interlock with no gap (margin-left = -cut). */
+.ds-tab {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 24px;
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  /* default (non-selected) = primary button: dark filled */
+  background: var(--neutral-950);
+  color: var(--color-white);
+}
+/* selected = secondary button: light surface, dark text */
+.ds-tab.is-active { background: var(--color-white); color: var(--neutral-950); }
+
+/* ── Logo ────────────────────────────────────── */
+
+.replica-logo {
+  display: block;
+  height: 20px;
+  width: auto;
+}
+.replica-logo.on-dark { filter: invert(1); }

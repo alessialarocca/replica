@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Replica_ Dashboard</title>
+  <style>
+    /* ── @font-face (extension-relative) ─────── */
+    @font-face { font-family: 'Aeonik'; src: url('fonts/AeonikTRIAL-Regular.otf') format('opentype'); font-weight: 400; }
+    @font-face { font-family: 'Aeonik'; src: url('fonts/AeonikTRIAL-Medium.otf')  format('opentype'); font-weight: 500; }
+    @font-face { font-family: 'Aeonik'; src: url('fonts/AeonikTRIAL-Bold.otf')    format('opentype'); font-weight: 700; }
+    @font-face { font-family: 'Aeonik Mono'; src: url('fonts/AeonikMonoTRIAL-Regular.otf') format('opentype'); font-weight: 400; }
+    @font-face { font-family: 'Aeonik Mono'; src: url('fonts/AeonikMonoTRIAL-Medium.otf')  format('opentype'); font-weight: 500; }
+    @font-face { font-family: 'Aeonik Mono'; src: url('fonts/AeonikMonoTRIAL-Bold.otf')    format('opentype'); font-weight: 700; }
+
+    :root {
+      /* new-style tokens */
+      --neutral-50:   #F5F5F5;   /* card surface */
+      --neutral-300:  #C4C4C4;   /* page background */
+      --neutral-700:  #404040;
+      --neutral-950:  #0A0A0A;
+      --color-white:  #FFFFFF;
+      --color-metal:  #828782;
+      --border-default: #D4D4D4;
+      --accent-amplify:   #1DFF5D;
+      --accent-poison:    #FF5E1F;
+      --accent-decontext: #5E1FFF;
+      --decontext-bg:     #EFE8FF;
+
+      --bg:            var(--neutral-300);
+      --surface:       var(--neutral-50);
+      --text:          var(--neutral-950);
+      --text-inverse:  var(--neutral-50);
+      --text-mid:      var(--color-metal);
+      --border:        var(--border-default);
+
+      --radius-sm: 8px;
+      --space-2xs: 4px; --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px; --space-xl: 32px; --space-2xl: 48px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Aeonik', sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Top nav ──────────────────────────────── */
+    .topnav {
+      display: flex;
+      align-items: center;
+      padding: var(--space-xl) var(--space-2xl);
+      gap: 0;
+    }
+    .topnav-logo {
+      width: 40px; height: 40px;
+      background: var(--neutral-950);
+      color: var(--text-inverse);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Aeonik Mono', monospace;
+      font-weight: 700; font-size: 18px;
+    }
+    .tab {
+      --cut: 20px;
+      display: inline-flex;
+      align-items: center;
+      height: 40px;
+      padding: 0 24px;
+      font-family: 'Aeonik Mono', monospace;
+      font-weight: 400;
+      font-size: 12px;
+      text-transform: uppercase;
+      background: var(--color-white);
+      color: var(--neutral-950);
+      clip-path: polygon(
+        var(--cut) 0,
+        100% 0,
+        100% calc(100% - var(--cut)),
+        calc(100% - var(--cut)) 100%,
+        0 100%,
+        0 var(--cut)
+      );
+      margin-left: calc(var(--cut) * -1);
+    }
+    .tab:first-of-type { margin-left: 0; }
+    .tab.is-active {
+      background: var(--neutral-950);
+      color: var(--color-white);
+      position: relative;
+      z-index: 1;
+    }
+
+    .live-badge {
+      margin-left: auto;
+      display: flex; align-items: center; gap: 8px;
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 11px;
+      color: var(--text);
+      letter-spacing: 0.04em;
+    }
+    .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-amplify); animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+    /* ── Main ─────────────────────────────────── */
+    .main {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 0 var(--space-2xl) var(--space-2xl);
+    }
+
+    .sentence-block {
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-md);
+    }
+    .sentence-label {
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: var(--text);
+      margin-bottom: var(--space-md);
+    }
+    .sentence-big {
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 18px;
+      line-height: 1.5;
+      color: var(--text);
+    }
+    .sentence-big .v {
+      padding: 0 4px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+    }
+    .sentence-big .v.decontext { color: var(--accent-decontext); border-color: var(--accent-decontext); }
+    .sentence-big .v.poisoned  { color: var(--accent-poison);    border-color: var(--accent-poison); }
+    .sentence-big .v.amplified { color: var(--accent-amplify);   border-color: var(--accent-amplify); }
+    .sentence-big .v.unresolved { color: var(--text-mid); }
+
+    .section-title {
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: var(--text);
+      padding: var(--space-md) 0 var(--space-sm);
+    }
+
+    /* ── Category grid ─────────────────────────── */
+    .cat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-auto-rows: 1fr;
+      gap: var(--space-md);
+      margin-bottom: var(--space-md);
+    }
+    @media (max-width: 900px) { .cat-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 560px) { .cat-grid { grid-template-columns: 1fr; grid-auto-rows: auto; } }
+
+    .cat-card {
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      padding: var(--space-lg);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+      cursor: pointer;
+      transition: box-shadow .15s;
+    }
+    .cat-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+    .cat-card.decontext { box-shadow: inset 0 0 0 1px var(--accent-decontext); }
+    .cat-card.unresolved { opacity: 0.55; cursor: default; }
+
+    .cat-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+    .cat-name {
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: var(--text);
+    }
+    .cat-status {
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+      padding: 2px 12px;
+      background: var(--neutral-950);
+      color: var(--text-inverse);
+    }
+    .cat-status.decontext { background: var(--accent-decontext); color: #fff; }
+    .cat-status.poisoned  { background: var(--accent-poison);    color: #fff; }
+    .cat-status.amplified { background: var(--accent-amplify);   color: var(--neutral-950); }
+    .cat-status.inactive {
+      background: transparent;
+      color: var(--neutral-700);
+      border: 1px solid var(--neutral-700);
+      padding: 1px 11px;
+    }
+
+    .cat-vocable {
+      font-family: 'Aeonik Mono', monospace;
+      font-weight: 500;
+      font-size: 32px;
+      line-height: 1.2;
+      letter-spacing: -0.03125em;
+      color: var(--text);
+      text-transform: none;
+    }
+    .cat-card.decontext .cat-vocable { color: var(--accent-decontext); }
+    .cat-card.unresolved .cat-vocable { font-size: 18px; color: var(--text-mid); }
+
+    .cat-sum {
+      font-family: 'Aeonik', sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--text);
+    }
+
+    .cat-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-xs);
+    }
+    .cat-pill {
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.20em;
+      text-transform: uppercase;
+      padding: 4px 8px;
+      border: 1px solid var(--neutral-700);
+      color: var(--neutral-700);
+    }
+
+    .cat-foot {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: var(--text);
+      margin-top: auto;
+    }
+
+    /* ── Decontext panel (full width) ──────────── */
+    .decontext-panel {
+      display: none;
+      background: var(--decontext-bg);
+      border: 1px solid var(--accent-decontext);
+      border-radius: var(--radius-sm);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-md);
+    }
+    .decontext-panel.visible { display: block; }
+    .decontext-panel-title {
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: var(--accent-decontext);
+      margin-bottom: var(--space-sm);
+    }
+    .decontext-entry {
+      display: flex;
+      gap: var(--space-md);
+      padding: var(--space-sm) 0;
+      border-top: 1px solid rgba(94,31,255,.25);
+      font-size: 14px;
+      color: var(--text);
+    }
+    .decontext-entry:first-child { border-top: none; }
+    .decontext-cat {
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      color: var(--accent-decontext);
+      min-width: 140px;
+      text-transform: uppercase;
+    }
+
+    /* ── Event log ─────────────────────────────── */
+    .event-log {
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-md);
+    }
+    .event-log .ev-eyebrow {
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: var(--text);
+      margin-bottom: var(--space-md);
+    }
+    .event-log .ev-title {
+      font-family: 'Aeonik Mono', monospace;
+      font-weight: 500;
+      font-size: 32px;
+      letter-spacing: -0.03125em;
+      margin-bottom: var(--space-lg);
+    }
+    .event-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      height: 120px;
+      margin-bottom: var(--space-sm);
+    }
+    .event-bar {
+      flex: 1;
+      background: var(--text-mid);
+      min-height: 4px;
+    }
+    .event-bar.poison  { background: var(--accent-poison); }
+    .event-bar.amplify { background: var(--accent-amplify); }
+    .event-bar.decontext { background: var(--accent-decontext); }
+    .event-bar.mixed { background: linear-gradient(var(--accent-poison), var(--accent-amplify)); }
+
+    .event-hours {
+      display: flex;
+      gap: 6px;
+      margin-bottom: var(--space-md);
+    }
+    .event-hour {
+      flex: 1;
+      text-align: center;
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.20em;
+      color: var(--text-mid);
+    }
+    .event-leg {
+      display: flex;
+      gap: var(--space-lg);
+      flex-wrap: wrap;
+      margin-bottom: var(--space-md);
+    }
+    .event-leg-i {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .event-leg-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    .event-entry {
+      display: grid;
+      grid-template-columns: 120px 60px 1fr 80px;
+      align-items: center;
+      gap: var(--space-md);
+      padding: var(--space-md) 0;
+      border-top: 1px solid var(--border);
+    }
+    .event-entry:first-of-type { border-top: none; }
+    .event-action {
+      font-family: 'Aeonik Mono', monospace;
+      font-weight: 700;
+      font-size: 14px;
+      text-transform: uppercase;
+    }
+    .event-int {
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 12px;
+      padding: 2px 9px;
+      text-transform: uppercase;
+      justify-self: start;
+    }
+    .event-int.low  { background: transparent; border: 1px solid var(--border); padding: 1px 8px; color: var(--text-mid); }
+    .event-int.mid  { background: var(--accent-poison); color: #fff; }
+    .event-int.high { background: var(--accent-amplify); color: var(--neutral-950); }
+    .event-int.dc   { background: var(--accent-decontext); color: #fff; }
+    .event-action.dc { color: var(--accent-decontext); }
+    .event-desc {
+      font-family: 'Aeonik', sans-serif;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .event-time {
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 14px;
+      text-align: right;
+      color: var(--text);
+    }
+    .no-events, .no-memory {
+      padding: var(--space-lg) 0;
+      font-family: 'Aeonik', sans-serif;
+      font-size: 14px;
+      color: var(--text-mid);
+      text-align: center;
+    }
+
+    /* ── Session memory ─────────────────────────── */
+    .memory-timeline {
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      padding: var(--space-lg);
+    }
+    .memory-entry {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: var(--space-md);
+      padding: var(--space-md) 0;
+      border-top: 1px solid var(--border);
+    }
+    .memory-entry:first-of-type { border-top: none; }
+    .memory-date {
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 12px;
+      color: var(--text);
+    }
+    .memory-sentence {
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--text);
+    }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 0; }
+  </style>
+</head>
+<body>
+
+  <!-- Top nav -->
+  <div class="topnav">
+    <div class="topnav-logo">R.</div>
+    <button class="tab is-active">DEVICE</button>
+    <button class="tab">MEMORY</button>
+    <button class="tab">PROFILE</button>
+    <div class="live-badge">
+      <span id="headerDate"></span>
+      <div class="live-dot"></div>
+      LIVE
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Sentence -->
+    <div class="sentence-block">
+      <div class="sentence-label">ALGORITHMIC SENTENCE — CURRENT PROFILE</div>
+      <div class="sentence-big" id="sentenceBig">LOADING...</div>
+    </div>
+
+    <!-- Decontext alerts -->
+    <div class="decontext-panel" id="decontextPanel">
+      <div class="decontext-panel-title">DECONTEXTUALISATION ALERTS</div>
+      <div id="decontextList"></div>
+    </div>
+
+    <!-- Categories -->
+    <div class="section-title">DATA CATEGORIES</div>
+    <div class="cat-grid" id="catGrid"></div>
+
+    <!-- Event log -->
+    <div class="event-log">
+      <div class="ev-eyebrow">LIVE EVENT STREAM</div>
+      <div class="ev-title">Actions today by hour</div>
+      <div class="event-chart" id="eventChart"></div>
+      <div class="event-hours" id="eventHours"></div>
+      <div class="event-leg">
+        <div class="event-leg-i"><div class="event-leg-dot" style="background:var(--accent-amplify)"></div>amplify</div>
+        <div class="event-leg-i"><div class="event-leg-dot" style="background:var(--accent-poison)"></div>poison</div>
+        <div class="event-leg-i"><div class="event-leg-dot" style="background:var(--accent-decontext)"></div>decontextualised</div>
+      </div>
+      <div id="eventList"></div>
+    </div>
+
+    <!-- Session memory -->
+    <div class="memory-timeline">
+      <div class="section-title" style="padding-top:0">SESSION MEMORY — DAILY SNAPSHOTS</div>
+      <div id="memoryList"></div>
+    </div>
+
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>

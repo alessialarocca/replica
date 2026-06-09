@@ -5,7 +5,7 @@ let profile=null, sentence=null, arduinoState={ connected:false, ip:null };
 // ── Init ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded',()=>{
   load();
-  document.getElementById('btnDash').addEventListener('click',()=>chrome.tabs.create({url:'http://localhost:8000'}));
+  document.getElementById('btnDash').addEventListener('click',()=>chrome.tabs.create({url:'https://alessialarocca.github.io/replica/replica-webapp/index.html'}));
   document.getElementById('btnReset').addEventListener('click',()=>{
     if(!confirm('Reset profile?'))return;
     chrome.runtime.sendMessage({type:'RESET'},()=>load());
@@ -70,7 +70,7 @@ function rCats(){
     else if(st.poisonLevel>0)      badge=`<span class="isl-badge poi">POISONED</span>`;
     else if(st.amplifyLevel>0)     badge=`<span class="isl-badge amp">AMPLIFIED</span>`;
     c.innerHTML=`<div class="isl-head"><span class="isl-lbl">${CAT_LABELS[cat].toUpperCase()}</span>${badge}</div><div class="isl-val">${nil?'—':voc}</div>`;
-    if(!nil)c.addEventListener('click',()=>chrome.tabs.create({url:'http://localhost:8000'}));
+    if(!nil)c.addEventListener('click',()=>chrome.tabs.create({url:'https://alessialarocca.github.io/replica/replica-webapp/index.html'}));
     g.appendChild(c);
   });
 }

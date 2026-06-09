@@ -57,7 +57,6 @@ function render(){if(!profile||!sentence)return;rMeta();rSentence();rIslands();r
 function rMeta(){
   const pts=CAT_ORDER.reduce((s,c)=>s+(profile.categories[c].dataPoints?profile.categories[c].dataPoints.length:0),0);
   document.getElementById('mPts').textContent=pts;
-  document.getElementById('sbarTxt').textContent=`live · ${pts} data point${pts!==1?'s':''}`;
   const last=profile.lastUpdated?new Date(profile.lastUpdated).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}):'—';
   document.getElementById('mLast').textContent=last;
 }
@@ -511,10 +510,12 @@ function renderPreferences(){
   const alertsEl=document.getElementById('prefDecontextAlerts');
   const timeEl=document.getElementById('prefSnapshotTime');
   if(alertsEl && document.activeElement!==alertsEl) alertsEl.checked=!!prefs.decontextAlerts;
+  const pad=n=>String(n).padStart(2,'0');
   if(timeEl && document.activeElement!==timeEl){
-    const pad=n=>String(n).padStart(2,'0');
     timeEl.value=`${pad(ds.hour|0)}:${pad(ds.minute|0)}`;
   }
+  const memTimeEl=document.getElementById('memSnapTime');
+  if(memTimeEl) memTimeEl.textContent=`${pad(ds.hour|0)}:${pad(ds.minute|0)}`;
 }
 
 function savePreferences(){

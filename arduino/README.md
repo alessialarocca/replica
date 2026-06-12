@@ -101,6 +101,51 @@ occorrenze di `GxEPD2_213_B74` con la classe corrispondente:
 
 Tutte le varianti usano lo stesso wiring sopra.
 
+### Alimentazione: LiPo + caricatore USB-C + interruttore ON/OFF
+
+Per rendere il device autonomo (non legato al cavo USB-C del PC) servono
+tre componenti:
+
+| Componente | Esempi compatibili | Note |
+|------------|--------------------|------|
+| **Caricatore USB-C all-in-one** | Adafruit PowerBoost 500/1000 Charger, DFRobot DFR0264, Pimoroni LiPo SHIM USB-C, moduli generici "TP4056 USB-C + boost 5 V" | Deve avere SIA charger LiPo SIA boost 5 V integrato. Se prendi un TP4056 nudo serve uno step-up esterno (MT3608) |
+| **Batteria LiPo singola cella 3.7 V** | 500 – 2000 mAh, connettore JST PH 2.0 mm | ≥1000 mAh consigliato: il Nano ESP32 con WiFi attivo tira picchi >300 mA |
+| **Interruttore SPST toggle/slide** | Qualsiasi switch da 1 A | Va in serie sul **5 V in uscita** del caricatore, NON sul filo della batteria nuda |
+
+**Schema di collegamento**
+
+```
+USB-C  (5 V in)
+   │
+   ▼
+┌──────────────────────────────┐
+│  CARICATORE USB-C + BOOST 5V │   ← carica la batteria quando l'USB-C è
+│                              │     collegato, eroga 5 V dalla LiPo
+│  BAT+   BAT-      OUT+  GND  │     quando l'USB-C è staccato
+└───┬──────┬─────────┬─────┬───┘
+    │      │         │     │
+   LiPo+  LiPo-      │     │
+                     │     │
+              SW ────┤     │   ← interruttore ON/OFF in serie sul 5 V
+                     │     │
+                     ▼     ▼
+                    Vin   GND   del Nano ESP32
+```
+
+**Regole importanti**
+
+- L'interruttore va **dopo** lo stadio boost del caricatore (sul filo
+  che entra in `Vin`), **mai** direttamente sui poli della batteria
+  nuda: bypasseresti la protezione della cella.
+- Il caricatore alimenta SIA il Nano SIA la batteria mentre l'USB-C è
+  collegato → si può usare e caricare contemporaneamente.
+- Se il modulo che hai NON ha un boost interno (es. TP4056 base), serve
+  uno step-up esterno tipo MT3608 tra `OUT` (3.7 – 4.2 V) e `Vin` del
+  Nano, che richiede ≥4.5 V su `Vin`.
+- Autonomia indicativa con LiPo 1000 mAh, WiFi attivo e display in idle:
+  3 – 4 ore. Quando il LED del caricatore segnala batteria scarica,
+  ricaricala collegando l'USB-C.
+
 ## Configurazione
 
 Apri `replica_firmware.ino` e modifica le prime due righe:

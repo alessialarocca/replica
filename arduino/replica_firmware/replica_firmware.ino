@@ -50,6 +50,41 @@
 //   DC    →   D9
 //   RST   →   D8
 //   BUSY  →   D7
+//
+// ── Alimentazione: LiPo + caricatore USB-C + interruttore ────
+// Schema consigliato (modulo all-in-one tipo Adafruit PowerBoost
+// 500/1000 Charger, DFRobot DFR0264, Pimoroni LiPo SHIM USB-C, o
+// qualsiasi modulo "TP4056 USB-C + boost 5V"):
+//
+//   USB-C (5 V in)
+//        │
+//        ▼
+//   ┌──────────────────────────┐
+//   │  CARICATORE USB-C +      │   ← carica la batteria quando
+//   │  BOOST 5 V               │     il cavo USB-C è inserito,
+//   │                          │     altrimenti eroga 5 V dalla LiPo
+//   │  BAT+   BAT-   OUT+ GND  │
+//   └───┬──────┬──────┬────┬───┘
+//       │      │      │    │
+//      LiPo+  LiPo-   │    │
+//                     │    │
+//                  SW ┤    │   ← SPST toggle switch ON/OFF in serie
+//                     │    │     sul positivo (interrompe Vin del Nano)
+//                     ▼    ▼
+//                  Vin    GND   del Nano ESP32
+//
+//   NOTE
+//   - LiPo singola cella 3.7 V, capacità a piacere (≥500 mAh per
+//     un paio d'ore di autonomia con WiFi attivo).
+//   - L'interruttore va SEMPRE dopo il boost 5 V, mai sul filo
+//     della batteria nuda (rischio di lasciare la cella a metà
+//     scarica senza protezione).
+//   - Se il modulo NON ha un boost interno (es. TP4056 nudo),
+//     serve uno step-up esterno tipo MT3608 tra OUT (3.7-4.2 V)
+//     e Vin del Nano.
+//   - Il caricatore alimenta SIA il Nano SIA la batteria mentre
+//     l'USB-C è collegata, quindi puoi lasciarlo in carica e usarlo
+//     contemporaneamente.
 // ─────────────────────────────────────────────────────────────
 
 #include <WiFi.h>
@@ -64,8 +99,19 @@
 // Command line e boot screen: bitmap 5x7 built-in con setTextSize(1).
 
 // ── Credenziali WiFi ─────────────────────────────────────────
-const char* WIFI_SSID     = "TIMDAISY";
-const char* WIFI_PASSWORD = "Kobe2019!";
+// Nano ESP32 supporta solo 2.4 GHz. Se l'hotspot del telefono pubblica
+// su 5 GHz (di default su molti iPhone) la connessione NON parte.
+// Controllare: hotspot iPhone → "Maximize Compatibility" = ON.
+const char* WIFI_SSID     = "alessia";
+const char* WIFI_PASSWORD = "passhot1";
+
+// Quanto spesso ricontrolliamo lo stato WiFi nel loop principale.
+// Se il link cade, riproviamo automaticamente con un ciclo non bloccante.
+static const unsigned long WIFI_CHECK_INTERVAL_MS  = 5000;
+// Quanto a lungo aspettiamo un singolo tentativo di bring-up (blocking).
+static const unsigned long WIFI_BRINGUP_TIMEOUT_MS = 35000;
+static unsigned long s_lastWifiCheckMs = 0;
+static bool          s_wifiUp          = false;
 
 // ── Pin ──────────────────────────────────────────────────────
 #define ENC1_CLK  2
@@ -731,6 +777,155 @@ void drawBootScreen(const char* line1, const char* line2) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// WiFi
+// ─────────────────────────────────────────────────────────────
+// Stampa tutte le reti 2.4 GHz visibili e segnala se il SSID
+// configurato è tra queste. Diagnostica chiave per status=6:
+// 99% delle volte significa "SSID non visibile" → 5 GHz, hotspot
+// spento, distanza eccessiva, o nome con uno spazio/case sbagliato.
+void wifiScanReport() {
+  // Reset esplicito della radio: dopo un begin() fallito lo stato STA
+  // è spesso "appeso" e scanNetworks() ritorna -2 (SCAN_FAILED).
+  Serial.println("[WiFi] resetting radio before scan...");
+  WiFi.disconnect(true, true);
+  delay(100);
+  WiFi.mode(WIFI_OFF);
+  delay(200);
+  WiFi.mode(WIFI_STA);
+  delay(200);
+
+  Serial.println("[WiFi] scanning visible 2.4 GHz networks...");
+  int n = WiFi.scanNetworks(/*async*/false, /*show_hidden*/true);
+  // n: >=0 numero di AP, -1 SCAN_RUNNING, -2 SCAN_FAILED.
+  if (n < 0) {
+    Serial.printf("[WiFi] scan: ERROR rc=%d (-2=SCAN_FAILED, -1=RUNNING)\n", n);
+    Serial.println("[WiFi]   → la radio del Nano ESP32 NON risponde. Cause comuni:");
+    Serial.println("[WiFi]     1) alimentazione USB insufficiente: prova un altro cavo o");
+    Serial.println("[WiFi]        un hub alimentato. La WiFi tira picchi >400 mA.");
+    Serial.println("[WiFi]     2) un componente esterno (display e-ink, encoder) sta");
+    Serial.println("[WiFi]        succhiando troppa corrente nello stesso momento.");
+    Serial.println("[WiFi]     3) richiede un power-cycle completo: stacca/riattacca USB.");
+    Serial.println("[WiFi]     4) in rari casi: aggiorna i bootloader del Nano ESP32 via IDE.");
+    return;
+  }
+  if (n == 0) {
+    Serial.println("[WiFi] scan: 0 reti visibili — la radio funziona ma non sente nulla.");
+    Serial.println("[WiFi]   → sei in un punto cieco? Avvicina il device all'AP/hotspot.");
+    return;
+  }
+  bool seen = false;
+  int  seenIdx = -1;
+  for (int i = 0; i < n; i++) {
+    String ssid = WiFi.SSID(i);
+    int rssi    = WiFi.RSSI(i);
+    int ch      = WiFi.channel(i);
+    Serial.printf("  %2d) ch=%2d  rssi=%4d dBm  ssid='%s'\n",
+                  i + 1, ch, rssi, ssid.c_str());
+    if (ssid == WIFI_SSID) { seen = true; seenIdx = i; }
+  }
+  if (seen) {
+    // Stampa auth mode / canale / RSSI dell'AP che vogliamo: con questo
+    // si capisce se è solo WPA3 (negoziazione PMF), WPA2 (password
+    // probabilmente sbagliata) o segnale troppo debole.
+    int rssi = WiFi.RSSI(seenIdx);
+    int ch   = WiFi.channel(seenIdx);
+    wifi_auth_mode_t auth = WiFi.encryptionType(seenIdx);
+    const char* authName = "UNKNOWN";
+    switch (auth) {
+      case WIFI_AUTH_OPEN:            authName = "OPEN";            break;
+      case WIFI_AUTH_WEP:             authName = "WEP";             break;
+      case WIFI_AUTH_WPA_PSK:         authName = "WPA-PSK";         break;
+      case WIFI_AUTH_WPA2_PSK:        authName = "WPA2-PSK";        break;
+      case WIFI_AUTH_WPA_WPA2_PSK:    authName = "WPA/WPA2-PSK";    break;
+      case WIFI_AUTH_WPA2_ENTERPRISE: authName = "WPA2-ENTERPRISE"; break;
+      case WIFI_AUTH_WPA3_PSK:        authName = "WPA3-PSK";        break;
+      case WIFI_AUTH_WPA2_WPA3_PSK:   authName = "WPA2/WPA3-PSK";   break;
+      default: break;
+    }
+    Serial.printf("[WiFi] target AP: ssid='%s' ch=%d rssi=%d dBm auth=%s\n",
+                  WIFI_SSID, ch, rssi, authName);
+    if (rssi < -80) {
+      Serial.println("[WiFi]   ⚠ segnale debole (< -80 dBm) — avvicina il device");
+    }
+    if (auth == WIFI_AUTH_WPA3_PSK) {
+      Serial.println("[WiFi]   ⚠ AP solo WPA3: alcuni hotspot iOS lo impostano per default.");
+      Serial.println("[WiFi]     Soluzione: nelle impostazioni hotspot abilita compatibilità WPA2,");
+      Serial.println("[WiFi]     oppure aggiorna il core arduino-esp32 alla 3.x se è già su WPA3.");
+    } else {
+      Serial.printf("[WiFi]   → AP in %s: la causa più probabile è la PASSWORD.\n", authName);
+      Serial.println("[WiFi]     Verifica esatta: maiuscole/minuscole, ! finale, niente spazi.");
+      Serial.println("[WiFi]     Prova a connettere uno smartphone alla stessa SSID con quella password.");
+    }
+  } else {
+    Serial.printf("[WiFi] '%s' NON visibile a 2.4 GHz.\n", WIFI_SSID);
+    Serial.println("[WiFi]   → iPhone hotspot: Impostazioni > Hotspot personale > 'Massima compatibilità' = ON");
+    Serial.println("[WiFi]   → Android hotspot: imposta banda 2.4 GHz (non Auto/5 GHz)");
+    Serial.println("[WiFi]   → router casa: verifica che 2.4 GHz sia attivo (alcuni mesh ne usano solo 5 GHz)");
+  }
+  WiFi.scanDelete();
+}
+
+// Bring-up bloccante: resetta lo stato STA, applica i tuning
+// consigliati (no sleep, auto-reconnect, no flash writes, hostname)
+// e attende fino a `timeoutMs` per WL_CONNECTED.
+bool wifiBringUp(unsigned long timeoutMs) {
+  Serial.printf("[WiFi] Connecting to '%s' ...\n", WIFI_SSID);
+  WiFi.disconnect(true, true);
+  delay(50);
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(false);
+  WiFi.setHostname("replica-mod-01");
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+  unsigned long start = millis();
+  while (WiFi.status() != WL_CONNECTED && (millis() - start) < timeoutMs) {
+    delay(250);
+    Serial.print('.');
+  }
+  bool ok = (WiFi.status() == WL_CONNECTED);
+  if (ok) {
+    Serial.printf("\n[WiFi] OK  ip=%s  rssi=%d dBm\n",
+                  WiFi.localIP().toString().c_str(), WiFi.RSSI());
+  } else {
+    // Codici utili: 1=NO_SSID_AVAIL, 4=CONNECT_FAILED, 6=DISCONNECTED.
+    Serial.printf("\n[WiFi] FAIL  status=%d  (1=NO_SSID, 4=BAD_PW, 6=DISCONN)\n",
+                  (int)WiFi.status());
+    wifiScanReport();
+  }
+  return ok;
+}
+
+// Da chiamare a ogni iterazione del loop. Non bloccante a riposo;
+// quando rileva un drop, tenta un singolo bring-up e poi torna.
+void wifiHousekeep() {
+  unsigned long now = millis();
+  bool nowUp = (WiFi.status() == WL_CONNECTED);
+
+  // Transizione UP → DOWN: aggiorna display una volta sola.
+  if (s_wifiUp && !nowUp) {
+    s_wifiUp = false;
+    Serial.println("[WiFi] link DOWN — will retry");
+    drawBootScreen("WIFI LOST", "retrying...");
+  }
+  // Transizione DOWN → UP: aggiorna display una volta sola.
+  if (!s_wifiUp && nowUp) {
+    s_wifiUp = true;
+    Serial.printf("[WiFi] link UP  ip=%s\n", WiFi.localIP().toString().c_str());
+    drawBootScreen("CONNECTED", WiFi.localIP().toString().c_str());
+    // dà un attimo all'utente per leggere l'IP, poi torna alla UI
+    delay(1500);
+    redrawAllFull(renderedCatIdx, renderedMode);
+  }
+
+  if (nowUp) return;
+  if (now - s_lastWifiCheckMs < WIFI_CHECK_INTERVAL_MS) return;
+  s_lastWifiCheckMs = now;
+  wifiBringUp(WIFI_BRINGUP_TIMEOUT_MS);
+}
+
+// ─────────────────────────────────────────────────────────────
 // Setup
 // ─────────────────────────────────────────────────────────────
 void setup() {
@@ -756,22 +951,31 @@ void setup() {
 
   drawBootScreen("Connecting...", WIFI_SSID);
 
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  int tries = 0;
-  while (WiFi.status() != WL_CONNECTED && tries < 40) {
-    delay(500);
-    Serial.print(".");
-    tries++;
+  // Sanity scan al boot: prova la radio prima di qualsiasi begin().
+  // Se anche questo scan ritorna -2/0 abbiamo conferma che è un
+  // problema HW (alimentazione/cavo/board) e non di credenziali.
+  Serial.println("[WiFi] boot sanity scan...");
+  WiFi.mode(WIFI_STA);
+  delay(200);
+  int bootScan = WiFi.scanNetworks();
+  Serial.printf("[WiFi] boot scan rc=%d\n", bootScan);
+  if (bootScan > 0) {
+    for (int i = 0; i < bootScan; i++) {
+      Serial.printf("  %2d) rssi=%4d dBm  ssid='%s'\n",
+                    i + 1, WiFi.RSSI(i), WiFi.SSID(i).c_str());
+    }
+    WiFi.scanDelete();
   }
 
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\nIP: " + WiFi.localIP().toString());
+  // Primo tentativo di bring-up. Se fallisce non blocchiamo per sempre:
+  // il loop principale continuerà a riprovare via wifiHousekeep().
+  s_wifiUp = wifiBringUp(WIFI_BRINGUP_TIMEOUT_MS);
+  if (s_wifiUp) {
     drawBootScreen("CONNECTED", WiFi.localIP().toString().c_str());
-    delay(4000);
+    delay(3000);
   } else {
-    Serial.println("\nWiFi connection FAILED — check SSID/password");
-    drawBootScreen("WIFI FAILED", WIFI_SSID);
-    delay(6000);
+    drawBootScreen("WIFI FAILED", "retrying...");
+    delay(3000);
   }
 
   server.on("/status",   HTTP_GET,     handleStatus);
@@ -796,6 +1000,7 @@ void setup() {
 // Loop
 // ─────────────────────────────────────────────────────────────
 void loop() {
+  wifiHousekeep();
   server.handleClient();
 
   int catIdx = enc1Pos;

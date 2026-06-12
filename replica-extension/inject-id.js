@@ -32,4 +32,11 @@
       }, '*');
     });
   });
+
+  // 3. push: background → page (storage changes, etc.)
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg && msg.__replica_push) {
+      window.postMessage({ __replica: 'push', kind: msg.__replica_push }, '*');
+    }
+  });
 })();

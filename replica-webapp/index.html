@@ -134,26 +134,26 @@ body {
 .device-sentence-box {
   position: absolute;
   /* Positioned to fit inside the screen rectangle of the device PNG */
-  top: 7%;
-  left: 43.5%;
-  right: 8%;
-  bottom: 67.5%;
-  display: flex;
-  align-items: center;
+  top: 8%;
+  left: 41.5%;
+  right: 6%;
+  bottom: 70%;
+  display: block;
   font-family: 'Aeonik Mono', monospace;
   font-weight: 500;
-  /* Fluid: small box → small text. Capped at 11px on desktop. */
-  font-size: clamp(7.5px, 2.4vw, 11px);
+  /* Fluid: small box → small text. Capped at 9px on desktop. */
+  font-size: clamp(6px, 2vw, 9px);
   line-height: 1.35;
   text-transform: uppercase;
   color: var(--text);
   letter-spacing: 0;
-  padding: 8px 10px;
+  padding: 6px 8px;
   overflow: hidden;
   text-align: left;
   word-break: normal;
   overflow-wrap: break-word;
 }
+.device-sentence-box > span { display: inline; }
 
 /* ── MAIN GRID (dashboard) ────────────────── */
 .dash-grid {
@@ -309,7 +309,7 @@ body {
 /* Event log row */
 .ev {
   display: grid;
-  grid-template-columns: 120px 60px 1fr 80px;
+  grid-template-columns: 160px 60px 1fr 80px;
   align-items: center;
   gap: var(--space-md);
   padding: var(--space-md) 0;
@@ -644,6 +644,19 @@ body {
 }
 .prof-col { display: flex; flex-direction: column; gap: var(--space-md); }
 @media (max-width: 720px) { .prof-stack { grid-template-columns: 1fr; } }
+
+/* Profile: EDIT PROFILE sits at the bottom of the Personal Information card */
+#scr-profile .ds-card { display: flex; flex-direction: column; }
+#scr-profile #btnEditProfile {
+  margin-top: auto;
+  align-self: stretch;
+  text-align: center;
+}
+/* Static (non-interactive) variant of mem-save-btn — identical visuals */
+.mem-save-btn.p-btn-static {
+  pointer-events: none;
+  cursor: default;
+}
 .card-head {
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--space-md);
@@ -778,6 +791,18 @@ body {
   text-transform: uppercase;
   cursor: pointer;
 }
+.modal-actions { display: flex; gap: var(--space-sm); }
+.modal-actions .modal-x { flex: 1; width: auto; }
+.modal-cancel {
+  flex: 1; padding: 12px;
+  background: transparent; color: var(--neutral-950);
+  border: 1px solid var(--neutral-950);
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.modal-danger { background: var(--color-error); }
+.modal-danger:hover { background: #8A1414; }
 
 /* ── NOT CONNECTED ───────────────────────── */
 .nc-logo { font: var(--type-sys-header); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--space-xl); }
@@ -852,8 +877,8 @@ body {
 
   /* Device sentence: shrink the type & expand the box so the full quote fits */
   .device-sentence-box {
-    bottom: 58%;          /* taller box — was 67.5% */
-    font-size: clamp(6px, 1.9vw, 9px);
+    bottom: 62%;          /* shorter box */
+    font-size: clamp(5px, 1.6vw, 7.5px);
     line-height: 1.2;
     padding: 4px 6px;
   }
@@ -886,15 +911,8 @@ body {
     scroll-snap-align: start;
   }
 
-  /* Profile: move EDIT PROFILE button to the bottom of its card */
-  #scr-profile .ds-card { display: flex; flex-direction: column; }
-  #scr-profile .card-head { display: contents; }
-  #scr-profile .card-head .cat-eyebrow { margin-bottom: var(--space-md); }
-  #scr-profile #btnEditProfile {
-    order: 999;
-    margin-top: var(--space-md);
-    width: 100%;
-  }
+  /* Profile: EDIT PROFILE button stretches full-width on mobile */
+  #scr-profile #btnEditProfile { width: 100%; }
 }
 </style>
 </head>
@@ -1013,7 +1031,6 @@ body {
           <div class="ds-card">
             <div class="card-head">
               <div class="cat-eyebrow">PERSONAL INFORMATION</div>
-              <button class="mem-save-btn" id="btnEditProfile">EDIT PROFILE</button>
             </div>
             <div class="p-row">
               <span class="p-k">Username</span>
@@ -1023,6 +1040,19 @@ body {
               <span class="p-k">Device ID</span>
               <span class="p-v" id="pDeviceId" style="font-size:11px;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</span>
             </div>
+            <div class="p-row">
+              <span class="p-k">Paired device</span>
+              <span class="p-v">Replica_ Mod 01</span>
+            </div>
+            <div class="p-row">
+              <span class="p-k">Pairing status</span>
+              <span class="p-v" id="pDevStatus">—</span>
+            </div>
+            <div class="p-row">
+              <span class="p-k">Device IP</span>
+              <span class="p-v" id="pDevIp">—</span>
+            </div>
+            <div class="mem-save-btn p-btn-static" id="btnEditProfile">EDIT PROFILE</div>
           </div>
 
           <div class="ds-card">
@@ -1063,6 +1093,7 @@ body {
             <div class="dz-t">⚠ Irreversible actions</div>
             <div class="dz-row"><span class="dz-l">Reset all data</span><button class="dz-btn" id="btnReset">Reset</button></div>
             <div class="dz-row"><span class="dz-l">Reset memory quotes</span><button class="dz-btn" id="btnResetSnaps">Reset</button></div>
+            <div class="dz-row"><span class="dz-l">Delete all decontext. logs</span><button class="dz-btn" id="btnResetDecontext">Delete</button></div>
           </div>
         </div>
       </div>
@@ -1074,6 +1105,17 @@ body {
 <div class="modal-ov" id="modalOv" onclick="if(event.target===this)closeModal()">
   <div class="modal"><div class="modal-t" id="modalT"></div><div class="modal-b" id="modalB"></div>
   <button class="modal-x" onclick="closeModal()">Got it</button></div>
+</div>
+
+<div class="modal-ov" id="confirmOv" onclick="if(event.target===this)closeConfirm()">
+  <div class="modal">
+    <div class="modal-t" id="confirmT"></div>
+    <div class="modal-b" id="confirmB"></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeConfirm()">Cancel</button>
+      <button class="modal-x modal-danger" id="confirmYes">Confirm</button>
+    </div>
+  </div>
 </div>
 
 <script src="app.js"></script>

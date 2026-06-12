@@ -657,10 +657,23 @@ function detectDecontextualization(primary, secondary) {
   return rule || null;
 }
 
+// Replica's own surfaces — the webapp itself must never feed the profile,
+// otherwise the user's awareness tool would pollute its own readings.
+function isReplicaSurface(url) {
+  if (url.startsWith('https://alessialarocca.github.io/replica/')) return true;
+  try {
+    const host = new URL(url).hostname;
+    return host === 'localhost' || host === '127.0.0.1';
+  } catch {
+    return false;
+  }
+}
+
 // ─── Update profile from navigation ───────────────────
 async function updateProfile(url, title) {
   // Skip extension pages, new tab, etc.
   if (!url || url.startsWith('chrome') || url.startsWith('about') || url.startsWith('moz-extension')) return;
+  if (isReplicaSurface(url)) return;
 
   const result = await chrome.storage.local.get('profile');
   const profile = result.profile || defaultProfile();
@@ -1055,6 +1068,28 @@ function handleMessage(msg, sender, sendResponse) {
     return true;
   }
 
+  if (msg.type === 'RESET_DECONTEXT') {
+    chrome.storage.local.get('profile').then(r => {
+      const profile = r.profile || defaultProfile();
+      profile.decontextFlags = {};
+      for (const cat of CATEGORIES) {
+        const st = profile.categories[cat];
+        if (!st) continue;
+        st.isDecontextualized = false;
+        if (Array.isArray(st.dataPoints)) {
+          st.dataPoints = st.dataPoints.map(dp => {
+            if (dp && dp.decontextualized) { const { decontextualized, ...rest } = dp; return rest; }
+            return dp;
+          });
+        }
+      }
+      profile.actions = (profile.actions || []).filter(a => a.action !== 'decontext');
+      profile.lastUpdated = Date.now();
+      chrome.storage.local.set({ profile }).then(() => sendResponse({ ok: true }));
+    });
+    return true;
+  }
+
   if (msg.type === 'RESET_SNAPSHOTS') {
     chrome.storage.local.get('profile').then(r => {
       const profile = r.profile || defaultProfile();
@@ -1117,6 +1152,21 @@ chrome.runtime.onMessage.addListener(handleMessage);
 
 // External (webapp on localhost via externally_connectable)
 chrome.runtime.onMessageExternal.addListener(handleMessage);
+
+// Push a "PROFILE_CHANGED" hint to every tab whenever stored profile changes.
+// Tabs without our content script silently fail (lastError is swallowed).
+function broadcastProfileChange() {
+  chrome.tabs.query({}, (tabs) => {
+    for (const t of tabs) {
+      chrome.tabs.sendMessage(t.id, { __replica_push: 'PROFILE_CHANGED' }, () => {
+        void chrome.runtime.lastError;
+      });
+    }
+  });
+}
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.profile) broadcastProfileChange();
+});
 
 // ─── Build algorithmic sentence ───────────────────────
 function buildSentence(profile) {

@@ -10,15 +10,37 @@ const CAT_SUM={
   psycho:'Emotional traits and habits inferred from behaviour.'
 };
 let profile=null,sentence=null,activeTab='device',mWk=0,mSelectedDay=isoDay(new Date()),poll=null;
+let arduinoState={connected:false,ip:null};
 
 /* ── messaging via content-script bridge ── */
 let _seq=0;const _pending={};
 window.addEventListener('message',e=>{
   if(e.source!==window)return;const d=e.data;
-  if(!d||d.__replica!=='res')return;
-  const cb=_pending[d.reqId];
-  if(cb){delete _pending[d.reqId];d.error?cb(null):cb(d.response);}
+  if(!d)return;
+  if(d.__replica==='res'){
+    const cb=_pending[d.reqId];
+    if(cb){delete _pending[d.reqId];d.error?cb(null):cb(d.response);}
+    return;
+  }
+  if(d.__replica==='push'){ onExtensionPush(); }
 });
+
+// Push from extension (chrome.storage.onChanged): re-fetch and re-render.
+// Coalesce bursts so a rapid-fire change storm only triggers one refresh.
+let _pushPending=false;
+function onExtensionPush(){
+  if(_pushPending) return;
+  _pushPending=true;
+  setTimeout(()=>{
+    _pushPending=false;
+    msg({type:'GET_PROFILE'},r=>{
+      if(!r) return;
+      profile=r.profile; sentence=r.sentence;
+      if(r.arduino) arduinoState=r.arduino;
+      render();
+    });
+  },50);
+}
 function msg(m,cb){msgRetry(m,cb,0);}
 function msgRetry(m,cb,attempt){
   if(!document.getElementById('replica-ext-id')){
@@ -44,9 +66,10 @@ function attemptConnect(){
 }
 function boot(r){
   profile=r.profile;sentence=r.sentence;
+  if(r.arduino) arduinoState=r.arduino;
   hideNC();render();
   if(poll)clearInterval(poll);
-  poll=setInterval(()=>msg({type:'GET_PROFILE'},r=>{if(r){profile=r.profile;sentence=r.sentence;render();}}),8000);
+  poll=setInterval(()=>msg({type:'GET_PROFILE'},r=>{if(r){profile=r.profile;sentence=r.sentence;if(r.arduino) arduinoState=r.arduino;render();}}),8000);
 }
 function showNC(){document.getElementById('notConnected').classList.add('show');document.getElementById('app').classList.remove('show');}
 function hideNC(){document.getElementById('notConnected').classList.remove('show');document.getElementById('app').classList.add('show');}
@@ -69,17 +92,14 @@ function rLed(){
 
 function rSentence(){
   const el=document.getElementById('sentenceEl'),v=sentence.vocables;
-  // Sentence pattern (matches Figma reference):
-  //   "YOU ARE A [bio] [prof] BASED IN [geo],
-  //    RECOGNIZED AS [socio] WITH A [econ] APPROACH
-  //    AND A TENDENCY TOWARD [psycho]."
+  // Sentence pattern — must mirror background.js `buildSentence()` and popup.js.
   const pts=[
-    {t:'YOU ARE A ',p:1},{c:'bio'},
-    {t:' ',p:1},{c:'prof'},
-    {t:' BASED IN ',p:1},{c:'geo'},
-    {t:', RECOGNIZED AS ',p:1},{c:'socio'},
-    {t:' WITH A ',p:1},{c:'econ'},
-    {t:' APPROACH AND A TENDENCY TOWARD ',p:1},{c:'psycho'},
+    {t:'IDENTIFIED AS ',p:1},{c:'bio'},
+    {t:', WORKING AS ',p:1},{c:'prof'},
+    {t:', LOCATED IN ',p:1},{c:'geo'},
+    {t:', NETWORKED WITHIN ',p:1},{c:'socio'},
+    {t:', VALUED AS ',p:1},{c:'econ'},
+    {t:', AND EXHIBITING ',p:1},{c:'psycho'},
     {t:'.',p:1}
   ];
   el.innerHTML='';
@@ -475,7 +495,6 @@ function deleteSnapshot(timestamp){
 }
 
 /* profile */
-let profileEditing=false;
 function rProf(){
   const days=profile.startedAt?Math.max(1,Math.ceil((Date.now()-profile.startedAt)/86400000)):1;
   document.getElementById('pSessions').textContent=days+' day'+(days!==1?'s':'');
@@ -535,42 +554,13 @@ function renderPersonalInfo(){
   const idEl=document.getElementById('pDeviceId');
   if(!userEl||!idEl) return;
   const name=(profile&&profile.username)||'';
-  // If we're editing and an input already exists, don't recreate it (would
-  // wipe what the user is typing and steal focus mid-poll).
-  const existingInput=document.getElementById('pUsernameInput');
-  if(profileEditing){
-    if(!existingInput){
-      userEl.innerHTML=`<input class="p-edit" id="pUsernameInput" type="text" maxlength="60" value="${name.replace(/"/g,'&quot;')}" placeholder="Set username">`;
-      const inp=document.getElementById('pUsernameInput');
-      inp.focus(); inp.select();
-      inp.addEventListener('keydown',e=>{
-        if(e.key==='Enter') saveUsername();
-        else if(e.key==='Escape'){ profileEditing=false; renderPersonalInfo(); }
-      });
-    }
-  } else {
-    userEl.textContent=name||'Anonymous';
-  }
+  userEl.textContent=name||'Anonymous';
   const idNode=document.getElementById('replica-ext-id');
   idEl.textContent=(idNode&&idNode.dataset.id)||'—';
-  const btn=document.getElementById('btnEditProfile');
-  if(btn) btn.textContent=profileEditing?'SAVE':'EDIT PROFILE';
-}
-
-function toggleEditProfile(){
-  if(profileEditing){ saveUsername(); return; }
-  profileEditing=true;
-  renderPersonalInfo();
-}
-
-function saveUsername(){
-  const inp=document.getElementById('pUsernameInput');
-  const value=inp?inp.value.trim():'';
-  msg({type:'SET_USERNAME',username:value},r=>{
-    if(r&&r.ok&&profile){ profile.username=r.username; }
-    profileEditing=false;
-    renderPersonalInfo();
-  });
+  const stEl=document.getElementById('pDevStatus');
+  const ipEl=document.getElementById('pDevIp');
+  if(stEl) stEl.textContent=arduinoState.connected?'Paired':'Not paired';
+  if(ipEl) ipEl.textContent=arduinoState.ip||'—';
 }
 
 /* modal */
@@ -582,6 +572,19 @@ const MODALS={
 };
 function openModal(k){const m=MODALS[k];if(!m)return;document.getElementById('modalT').textContent=m.t;document.getElementById('modalB').textContent=m.b;document.getElementById('modalOv').classList.add('on');}
 function closeModal(){document.getElementById('modalOv').classList.remove('on');}
+
+/* confirm modal for irreversible actions */
+let _confirmCb=null;
+function askConfirm(title,body,onYes){
+  document.getElementById('confirmT').textContent=title;
+  document.getElementById('confirmB').textContent=body;
+  _confirmCb=onYes;
+  document.getElementById('confirmOv').classList.add('on');
+}
+function closeConfirm(){
+  _confirmCb=null;
+  document.getElementById('confirmOv').classList.remove('on');
+}
 
 /* nav */
 function switchTab(t){
@@ -625,23 +628,44 @@ document.addEventListener('DOMContentLoaded',()=>{
     });
   });
 
-  const btnEdit=document.getElementById('btnEditProfile');
-  if(btnEdit) btnEdit.addEventListener('click',toggleEditProfile);
-
   ['prefDecontextAlerts','prefSnapshotTime'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.addEventListener('change',savePreferences);
   });
 
   document.getElementById('btnReset').addEventListener('click',()=>{
-    msg({type:'RESET'},()=>setTimeout(attemptConnect,200));
+    askConfirm(
+      'Reset all data?',
+      'This wipes your entire Data Double — categories, signals, snapshots and decontextualisation logs. The action cannot be undone.',
+      ()=>msg({type:'RESET'},()=>setTimeout(attemptConnect,200))
+    );
   });
   document.getElementById('btnResetSnaps').addEventListener('click',()=>{
-    msg({type:'RESET_SNAPSHOTS'},r=>{
-      if(r&&r.ok){
-        msg({type:'GET_PROFILE'},rr=>{ if(rr){profile=rr.profile;sentence=rr.sentence;rMem();rProf();} });
-      }
-    });
+    askConfirm(
+      'Reset memory quotes?',
+      'All saved sentence snapshots will be removed from your memory. The action cannot be undone.',
+      ()=>msg({type:'RESET_SNAPSHOTS'},r=>{
+        if(r&&r.ok){
+          msg({type:'GET_PROFILE'},rr=>{ if(rr){profile=rr.profile;sentence=rr.sentence;rMem();rProf();} });
+        }
+      })
+    );
+  });
+  document.getElementById('btnResetDecontext').addEventListener('click',()=>{
+    askConfirm(
+      'Delete all decontextualisation logs?',
+      'Every decontextualisation flag, marked data point and historical alert will be removed. The action cannot be undone.',
+      ()=>msg({type:'RESET_DECONTEXT'},r=>{
+        if(r&&r.ok){
+          msg({type:'GET_PROFILE'},rr=>{ if(rr){profile=rr.profile;sentence=rr.sentence;render();} });
+        }
+      })
+    );
+  });
+  document.getElementById('confirmYes').addEventListener('click',()=>{
+    const cb=_confirmCb;
+    closeConfirm();
+    if(cb) cb();
   });
 });
 document.addEventListener('DOMContentLoaded',()=>setTimeout(attemptConnect,0));

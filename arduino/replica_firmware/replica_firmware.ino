@@ -102,8 +102,8 @@
 // Nano ESP32 supporta solo 2.4 GHz. Se l'hotspot del telefono pubblica
 // su 5 GHz (di default su molti iPhone) la connessione NON parte.
 // Controllare: hotspot iPhone → "Maximize Compatibility" = ON.
-const char* WIFI_SSID     = "alessia";
-const char* WIFI_PASSWORD = "passhot1";
+const char* WIFI_SSID     = "TIMDAISY";
+const char* WIFI_PASSWORD = "Kobe2019!";
 
 // Quanto spesso ricontrolliamo lo stato WiFi nel loop principale.
 // Se il link cade, riproviamo automaticamente con un ciclo non bloccante.
@@ -175,6 +175,37 @@ String catVocables[N_CAT];
 volatile int  enc1Pos = 0;
 // Encoder 2 — stato azione: -1 = poison, 0 = neutral, +1 = amplify
 volatile int  enc2Pos = 0;
+// Encoder 2 — posizione assoluta corrente, integer in [0..ENC2_POS_MAX].
+// L'ISR scrive direttamente qui. HARD-STOP a entrambi gli estremi:
+// ruotare oltre pos 0 o oltre pos 10 NON ha effetto (niente wrap).
+//
+// Mappa posizione → modo:
+//   pos  0..3  → idle    ( 0)   ← pos 0 = boot default (idle, start)
+//   pos  4..6  → amplify (+1)   ← centro
+//   pos  7..10 → poison  (-1)   ← fondo corsa
+const int ENC2_POS_MAX        = 10;  // posizione massima inclusiva
+const int ENC2_AMPLIFY_START  = 4;   // pos < 4  → idle
+const int ENC2_POISON_START   = 7;   // pos < 7  → amplify, altrimenti poison
+volatile int enc2EncPos = 0;
+
+// ── Decoder a quadratura per encoder 2 ──────────────────────
+// Tabella delle transizioni di stato: indicizzata da (prevState<<2)|currState
+// dove state = (CLK<<1)|DT. Valori validi: +1 (CW), -1 (CCW), 0 (rimbalzo
+// o transizione invalida → ignorata). Questa è l'unica difesa necessaria
+// contro il bounce dei contatti: i pattern non validi semplicemente non
+// emettono un sub-step e non spostano la posizione.
+const int8_t ENC2_QUAD_TABLE[16] = {
+   0, +1, -1,  0,
+  -1,  0,  0, +1,
+  +1,  0,  0, -1,
+   0, -1, +1,  0
+};
+// Un detent fisico = 4 transizioni complete in quadratura (encoder
+// EC11 standard). Quando l'accumulatore raggiunge ±4, emettiamo
+// esattamente 1 posizione (clamped da hard-stop).
+const int ENC2_TRANSITIONS_PER_DETENT = 4;
+volatile uint8_t enc2PrevState = 0;   // ultimo (CLK<<1)|DT letto
+volatile int8_t  enc2SubStep   = 0;   // accumulatore in [-3..+3]
 // Click encoder 1 → segnala azione "fresca" da consumare via /action
 volatile bool actionFresh = false;
 
@@ -274,16 +305,36 @@ void IRAM_ATTR enc1SwISR() {
   actionFresh = true;
 }
 
-void IRAM_ATTR enc2ClkISR() {
-  static unsigned long last = 0;
-  unsigned long t = millis();
-  if (t - last < 5) return;
-  last = t;
-  if (digitalRead(ENC2_DT) == HIGH) {
-    if (enc2Pos < 1)  enc2Pos++;
-  } else {
-    if (enc2Pos > -1) enc2Pos--;
+// ISR a quadratura: viene chiamata su OGNI cambio di CLK e di DT.
+// Niente debounce a tempo — il rimbalzo viene filtrato dalla tabella
+// delle transizioni (ENC2_QUAD_TABLE), che restituisce 0 sui pattern
+// non validi. Risultato: 1 detent fisico = 1 incremento netto di enc2EncPos.
+void IRAM_ATTR enc2ISR() {
+  uint8_t curr = (digitalRead(ENC2_CLK) << 1) | digitalRead(ENC2_DT);
+  uint8_t idx  = ((enc2PrevState & 0x3) << 2) | curr;
+  enc2PrevState = curr;
+  // Negazione del delta: il cablaggio fisico CLK/DT è invertito
+  // rispetto alla convenzione della tabella, quindi CW deve crescere.
+  int8_t delta = -ENC2_QUAD_TABLE[idx];
+  if (delta == 0) return;            // transizione non valida → ignora
+  enc2SubStep += delta;
+  if (enc2SubStep >= ENC2_TRANSITIONS_PER_DETENT) {
+    enc2SubStep -= ENC2_TRANSITIONS_PER_DETENT;
+    if (enc2EncPos < ENC2_POS_MAX) enc2EncPos++;
+  } else if (enc2SubStep <= -ENC2_TRANSITIONS_PER_DETENT) {
+    enc2SubStep += ENC2_TRANSITIONS_PER_DETENT;
+    if (enc2EncPos > 0)            enc2EncPos--;
   }
+}
+
+// Mappa posizione assoluta 0..10 → modo logico:
+//   pos  0..3 → idle    ( 0)   ← boot default (start)
+//   pos  4..6 → amplify (+1)   ← centro
+//   pos 7..10 → poison  (-1)   ← fondo corsa
+int modeFromPos(int pos) {
+  if (pos < ENC2_AMPLIFY_START) return  0;   // idle
+  if (pos < ENC2_POISON_START)  return  1;   // amplify
+  return                              -1;    // poison
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -939,7 +990,9 @@ void setup() {
 
   attachInterrupt(digitalPinToInterrupt(ENC1_CLK), enc1ClkISR, FALLING);
   attachInterrupt(digitalPinToInterrupt(ENC1_SW),  enc1SwISR,  FALLING);
-  attachInterrupt(digitalPinToInterrupt(ENC2_CLK), enc2ClkISR, FALLING);
+  // Encoder 2: gli interrupt vengono attaccati ALLA FINE di setup(),
+  // dopo WiFi + e-ink, così durante l'inizializzazione (lenta e rumorosa)
+  // nessun sub-step può accumularsi e la posizione resta garantita a 0.
 
   pinMode(LED_R, OUTPUT);
   pinMode(LED_G, OUTPUT);
@@ -994,6 +1047,18 @@ void setup() {
   renderedMode    = 0;
   redrawAllFull(0, 0);
   applySteadyLED(0);
+
+  // Encoder 2: ora che boot/WiFi/e-ink sono finiti, azzera lo stato e
+  // attacca finalmente gli interrupt. Da qui in poi pos=0 → idle, e
+  // il primo conteggio osservato in seriale sarà inequivocabilmente 0.
+  enc2EncPos    = 0;
+  enc2SubStep   = 0;
+  enc2PrevState = (digitalRead(ENC2_CLK) << 1) | digitalRead(ENC2_DT);
+  attachInterrupt(digitalPinToInterrupt(ENC2_CLK), enc2ISR, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENC2_DT),  enc2ISR, CHANGE);
+  Serial.print("Enc2  -> pos=0/");
+  Serial.print(ENC2_POS_MAX);
+  Serial.println("  mode=idle (boot)");
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1004,7 +1069,26 @@ void loop() {
   server.handleClient();
 
   int catIdx = enc1Pos;
-  int mode   = enc2Pos;
+
+  // ── Encoder 2: posizione assoluta 0..10 → modo ──────────────
+  // enc2EncPos è la posizione corrente (aggiornata dall'ISR a ogni
+  // click, con hard-stop a 0 e a ENC2_POS_MAX — niente wrap).
+  int encPos = enc2EncPos;
+  int mode   = modeFromPos(encPos);
+  enc2Pos    = mode;   // sincronizza per eventuali lettori esterni
+
+  // Inizializzato a 0 (lo stato di boot già stampato in setup),
+  // così la prima iterazione del loop non duplica la riga "pos=0".
+  static int lastLoggedEncPos = 0;
+  if (encPos != lastLoggedEncPos) {
+    lastLoggedEncPos = encPos;
+    Serial.print("Enc2  -> pos=");
+    Serial.print(encPos);
+    Serial.print("/");
+    Serial.print(ENC2_POS_MAX);
+    Serial.print("  mode=");
+    Serial.println(modeStr(mode));
+  }
 
   // ── Encoder 2: transizione modo + state machine UI ───────────
   if (mode != renderedMode) {

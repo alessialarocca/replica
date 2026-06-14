@@ -90,13 +90,19 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <GxEPD2_BW.h>
-#include <Fonts/FreeMono9pt7b.h>
+// Frase: IBM Plex Mono 6pt (generato con fontconvert, cap-height 7 px,
+// cell 7x8). Taglia intermedia fra built-in (8 px) e FreeMono9pt7b (13 px).
+// Command line e boot screen: bitmap built-in 5x7 (cell 6x8 a setTextSize(1)).
+#include "IBMPlexMono6pt7b.h"
 #include <ArduinoJson.h>
 #include <SPI.h>
 
 // ── Font ─────────────────────────────────────────────────────
-// Frase: FreeMono9pt7b — font monospaziato incluso in Adafruit GFX.
-// Command line e boot screen: bitmap 5x7 built-in con setTextSize(1).
+// Frase: IBM Plex Mono 6pt — monospace, cap-height 7 px, cell 7x8.
+// Generato da IBMPlexMono-Regular.ttf con fontconvert (Adafruit GFX).
+// Sta fra il bitmap built-in 5x7 (8 px, troppo piccolo) e FreeMono9pt7b
+// (13 px, troppo grande).
+// Command line e boot screen: bitmap built-in 5x7 (cell 6x8, setTextSize 1).
 
 // ── Credenziali WiFi ─────────────────────────────────────────
 // Nano ESP32 supporta solo 2.4 GHz. Se l'hotspot del telefono pubblica
@@ -159,11 +165,12 @@ const char* CAT_KEYS[]   = { "bio",  "geo",  "prof",  "econ", "socio", "psycho" 
 const int   N_CAT        = 6;
 
 // Posizione di ciascuna categoria nella frase costruita dall'estensione:
-// "IDENTIFIED AS [bio], WORKING AS [prof], LOCATED IN [geo],
-//  NETWORKED WITHIN [socio], VALUED AS [econ], AND EXHIBITING [psycho]."
-// Serve a disambiguare quale "[?]" evidenziare quando il vocabolo della
-// categoria selezionata è vuoto e ce ne sono altre vuote nella frase.
-const int CAT_SENTENCE_POS[N_CAT] = { 0, 2, 1, 4, 3, 5 };
+// "IDENTIFIED AS [bio], LOCATED IN [geo], WORKING AS [prof],
+//  VALUED AS [econ], NETWORKED WITHIN [socio], AND EXHIBITING [psycho]."
+// Ora l'ordine nella frase combacia con CAT_KEYS → mappa identità.
+// (Serve a disambiguare quale "[?]" evidenziare quando il vocabolo della
+//  categoria selezionata è vuoto e ce ne sono altre vuote nella frase.)
+const int CAT_SENTENCE_POS[N_CAT] = { 0, 1, 2, 3, 4, 5 };
 
 // ── Stato globale ────────────────────────────────────────────
 String currentSentence = "AWAITING\nCONNECTION...";
@@ -173,6 +180,15 @@ String catVocables[N_CAT];
 
 // Encoder 1 — indice categoria selezionata (0..N_CAT-1)
 volatile int  enc1Pos = 0;
+// Stato del decoder quadratura per encoder 1 (specchia quello di enc2).
+volatile uint8_t enc1PrevState = 0;
+volatile int8_t  enc1SubStep   = 0;
+// Detent emessi dall'ISR e ancora da consumare nel loop (signed, +CW/-CCW).
+volatile int     enc1PendingDelta = 0;
+// Timeout selezione categoria: se enc1 non si muove per N ms, la selezione
+// scompare dalla frase. Ricompare al primo click successivo.
+const unsigned long ENC1_SELECTION_TIMEOUT_MS = 10000;
+unsigned long lastEnc1MoveMs = 0;
 // Encoder 2 — stato azione: -1 = poison, 0 = neutral, +1 = amplify
 volatile int  enc2Pos = 0;
 // Encoder 2 — posizione assoluta corrente, integer in [0..ENC2_POS_MAX].
@@ -282,18 +298,23 @@ String        decontextWords[8];
 // ─────────────────────────────────────────────────────────────
 // Encoder ISRs
 // ─────────────────────────────────────────────────────────────
-void IRAM_ATTR enc1ClkISR() {
-  static unsigned long last = 0;
-  unsigned long t = millis();
-  if (t - last < 5) return;
-  last = t;
-  int delta = (digitalRead(ENC1_DT) == HIGH) ? 1 : -1;
-  // In UI_IDLE → categoria. In UI_ACTION_SELECT → intensità.
-  // In UI_UNDO la rotazione viene ignorata (la decisione è binaria).
-  if (uiState == UI_ACTION_SELECT) {
-    intensityIdx = (intensityIdx + delta + N_INT) % N_INT;
-  } else if (uiState == UI_IDLE) {
-    enc1Pos = (enc1Pos + delta + N_CAT) % N_CAT;
+// Encoder 1 — stesso decoder quadratura di enc2 (ENC2_QUAD_TABLE è
+// riutilizzata: è solo una lookup table 16-entry). Emette delta firmati
+// in enc1PendingDelta; il dispatch (categoria vs intensità vs noop in UNDO)
+// è fatto nel loop dove leggere uiState non è racy.
+void IRAM_ATTR enc1ISR() {
+  uint8_t curr = (digitalRead(ENC1_CLK) << 1) | digitalRead(ENC1_DT);
+  uint8_t idx  = ((enc1PrevState & 0x3) << 2) | curr;
+  enc1PrevState = curr;
+  int8_t delta = -ENC2_QUAD_TABLE[idx];   // negato per allineare CW = avanti
+  if (delta == 0) return;                 // transizione invalida → ignora
+  enc1SubStep += delta;
+  if (enc1SubStep >= ENC2_TRANSITIONS_PER_DETENT) {
+    enc1SubStep -= ENC2_TRANSITIONS_PER_DETENT;
+    enc1PendingDelta++;
+  } else if (enc1SubStep <= -ENC2_TRANSITIONS_PER_DETENT) {
+    enc1SubStep += ENC2_TRANSITIONS_PER_DETENT;
+    enc1PendingDelta--;
   }
 }
 
@@ -457,21 +478,21 @@ int findVocableRange(String words[], int wCount, const String& voc, int& outEnd)
   return -1;
 }
 
-// Disegna la frase con AeonikMono6pt7b (monospaziato, ~6pt).
+// Disegna la frase con IBM Plex Mono 6pt (~7x8 cell, cap-height 7).
 // Tre stati visivi per parola:
 //  - SELEZIONATA (encoder 1) → sfondo nero stabile
 //  - DECONTESTUALIZZATA      → sfondo nero solo se dcBlinkState (lampeggio)
 //  - resto                   → testo nero su bianco
 void drawSentence(int catIdx) {
   display.fillScreen(GxEPD_WHITE);
-  display.setFont(&FreeMono9pt7b);
+  display.setFont(&IBMPlexMono_Regular6pt7b);
   display.setTextWrap(false);
   display.setTextColor(GxEPD_BLACK);
 
-  // Metriche di FreeMono9pt7b (mono → larghezza fissa)
-  const int CHAR_W = 11;     // xAdvance uniforme
-  const int LINE_H = 15;     // un po' meno di yAdvance (18) per stare nei 102 px
-  const int ASCENT = 9;      // altezza cassa maiuscola sopra baseline
+  // Metriche di IBM Plex Mono 6pt (mono, baseline cursor)
+  const int CHAR_W = 7;      // xAdvance uniforme
+  const int LINE_H = 12;     // un po' meno di yAdvance (15)
+  const int ASCENT = 7;      // altezza cassa maiuscola sopra baseline (yOffset -7)
   const int MARGIN = 6;
   const int MAX_BASELINE = SENT_H - 2;
   const int spaceW = CHAR_W;
@@ -595,17 +616,16 @@ String cmdLineSignature(int mode, int intIdx) {
   return "";
 }
 
-// Disegna SOLO la riga in basso. Usa il font built-in setTextSize(1)
-// (~6pt) perché il testo è lungo; la sottolineatura è una hline.
+// Disegna SOLO la riga in basso. Usa il built-in 5x7 come tutto il display.
 void drawCommandLine(int mode, int intIdx) {
-  const int Y_TOP    = SENT_H + 2;        // 104
-  const int Y_TEXT   = Y_TOP + 5;          // baseline-ish per default font
-  const int CHAR_W   = 6;
+  const int Y_TOP    = SENT_H + 2;         // 104
+  const int Y_TEXT   = Y_TOP + 5;           // top-left bitmap, text spans 109..117
+  const int CHAR_W   = 6;                   // bitmap built-in cell
   const int MARGIN   = 6;
 
   display.fillRect(0, SENT_H, SCREEN_W, SCREEN_H - SENT_H, GxEPD_WHITE);
   display.drawFastHLine(0, SENT_H, SCREEN_W, GxEPD_BLACK);
-  display.setFont(NULL);            // bitmap built-in 5x7
+  display.setFont(NULL);                    // bitmap built-in 5x7
   display.setTextSize(1);
   display.setTextColor(GxEPD_BLACK, GxEPD_WHITE);
   display.setTextWrap(false);
@@ -816,10 +836,10 @@ void drawBootScreen(const char* line1, const char* line2) {
   do {
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK, GxEPD_WHITE);
-    display.setTextSize(2);
+    display.setFont(NULL);             // bitmap built-in 5x7
+    display.setTextSize(1);
     display.setCursor(6, 6);
     display.print("REPLICA_");
-    display.setTextSize(1);
     display.setCursor(6, 36);
     display.print(line1);
     display.setCursor(6, 50);
@@ -988,8 +1008,12 @@ void setup() {
   pinMode(ENC2_CLK, INPUT_PULLUP);
   pinMode(ENC2_DT,  INPUT_PULLUP);
 
-  attachInterrupt(digitalPinToInterrupt(ENC1_CLK), enc1ClkISR, FALLING);
-  attachInterrupt(digitalPinToInterrupt(ENC1_SW),  enc1SwISR,  FALLING);
+  // Encoder 1: decoder quadratura su entrambi i fronti di CLK e DT
+  // (precisione massima, nessuno skip). Il pulsante resta su FALLING.
+  enc1PrevState = (digitalRead(ENC1_CLK) << 1) | digitalRead(ENC1_DT);
+  attachInterrupt(digitalPinToInterrupt(ENC1_CLK), enc1ISR,   CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENC1_DT),  enc1ISR,   CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENC1_SW),  enc1SwISR, FALLING);
   // Encoder 2: gli interrupt vengono attaccati ALLA FINE di setup(),
   // dopo WiFi + e-ink, così durante l'inizializzazione (lenta e rumorosa)
   // nessun sub-step può accumularsi e la posizione resta garantita a 0.
@@ -1048,6 +1072,10 @@ void setup() {
   redrawAllFull(0, 0);
   applySteadyLED(0);
 
+  // Boot = "appena mosso", così la selezione categoria è visibile per i
+  // primi ENC1_SELECTION_TIMEOUT_MS millisecondi.
+  lastEnc1MoveMs = millis();
+
   // Encoder 2: ora che boot/WiFi/e-ink sono finiti, azzera lo stato e
   // attacca finalmente gli interrupt. Da qui in poi pos=0 → idle, e
   // il primo conteggio osservato in seriale sarà inequivocabilmente 0.
@@ -1067,6 +1095,29 @@ void setup() {
 void loop() {
   wifiHousekeep();
   server.handleClient();
+
+  // ── Encoder 1: consuma detent emessi dall'ISR e fai dispatch ───
+  // sul giusto target a seconda della UI state. Dopo dispatch resetta
+  // il timeout di visibilità della selezione.
+  int delta;
+  noInterrupts();
+  delta = enc1PendingDelta;
+  enc1PendingDelta = 0;
+  interrupts();
+  if (delta != 0) {
+    if (uiState == UI_ACTION_SELECT) {
+      int v = intensityIdx + delta;
+      v = ((v % N_INT) + N_INT) % N_INT;
+      intensityIdx = v;
+    } else if (uiState == UI_IDLE) {
+      int v = enc1Pos + delta;
+      v = ((v % N_CAT) + N_CAT) % N_CAT;
+      enc1Pos = v;
+    }
+    // UI_UNDO ignora la rotazione (decisione binaria) ma il movimento
+    // conta comunque per il timeout della selezione.
+    lastEnc1MoveMs = millis();
+  }
 
   int catIdx = enc1Pos;
 
@@ -1104,14 +1155,22 @@ void loop() {
     if (ledAnim == LED_NONE) applySteadyLED(mode);
   }
 
-  // ── Encoder 1 ruotato: in UI_IDLE cambia la categoria,
-  //    in UI_ACTION_SELECT cambia la sola intensità.
-  if (catIdx != renderedCatIdx) {
-    renderedCatIdx  = catIdx;
-    currentCategory = CAT_KEYS[catIdx];
-    Serial.print("Cat   -> ");
-    Serial.println(currentCategory);
-    redrawAllPartial(catIdx, mode);
+  // ── Encoder 1: selezione visibile entro ENC1_SELECTION_TIMEOUT_MS ──
+  // dall'ultimo movimento. Oltre, la categoria evidenziata sparisce
+  // (displayedCatIdx = -1 → drawSentence non disegna nessun riquadro).
+  bool selectionVisible =
+       (millis() - lastEnc1MoveMs) < ENC1_SELECTION_TIMEOUT_MS;
+  int displayedCatIdx = selectionVisible ? catIdx : -1;
+  if (displayedCatIdx != renderedCatIdx) {
+    renderedCatIdx = displayedCatIdx;
+    if (displayedCatIdx >= 0) {
+      currentCategory = CAT_KEYS[displayedCatIdx];
+      Serial.print("Cat   -> ");
+      Serial.println(currentCategory);
+    } else {
+      Serial.println("Cat   -> (hidden, 10s idle)");
+    }
+    redrawAllPartial(displayedCatIdx, mode);
   }
 
   // ── Encoder 1 click: significato dipende dallo stato ─────────

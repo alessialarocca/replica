@@ -20,7 +20,7 @@ const CAT_SUM = {
   psycho: 'Emotional traits and habits inferred from behaviour.'
 };
 
-const CAT_ORDER = ['bio', 'prof', 'geo', 'socio', 'econ', 'psycho'];
+const CAT_ORDER = ['bio', 'geo', 'prof', 'econ', 'socio', 'psycho'];
 
 let profile = null;
 let sentence = null;
@@ -55,12 +55,12 @@ function renderSentence() {
   if (!sentence) return;
 
   const parts = [
-    { text: 'YOU ARE A ', plain: true }, { cat: 'bio' },
-    { text: ' ', plain: true }, { cat: 'prof' },
-    { text: ' LOCATED IN ', plain: true }, { cat: 'geo' },
-    { text: ' WITH A ', plain: true }, { cat: 'socio' },
-    { text: ' RECOGNISED AS ', plain: true }, { cat: 'econ' },
-    { text: ' AND A TENDENCY TOWARD ', plain: true }, { cat: 'psycho' },
+    { text: 'IDENTIFIED AS ', plain: true }, { cat: 'bio' },
+    { text: ', LOCATED IN ', plain: true }, { cat: 'geo' },
+    { text: ', WORKING AS ', plain: true }, { cat: 'prof' },
+    { text: ', VALUED AS ', plain: true }, { cat: 'econ' },
+    { text: ', NETWORKED WITHIN ', plain: true }, { cat: 'socio' },
+    { text: ', AND EXHIBITING ', plain: true }, { cat: 'psycho' },
     { text: '.', plain: true }
   ];
 

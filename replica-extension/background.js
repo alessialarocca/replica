@@ -179,8 +179,8 @@ const CLASSIFIERS = {
 
 // ─── Vocable map ───────────────────────────────────────
 // Sentence template:
-//   "IDENTIFIED AS [bio], WORKING AS [prof], LOCATED IN [geo],
-//    NETWORKED WITHIN [socio], VALUED AS [econ],
+//   "IDENTIFIED AS [bio], LOCATED IN [geo], WORKING AS [prof],
+//    VALUED AS [econ], NETWORKED WITHIN [socio],
 //    AND EXHIBITING [psycho]."
 //
 // Each slot must complete its grammatical frame:
@@ -1178,7 +1178,7 @@ function buildSentence(profile) {
   // shows the same shape, e.g. "IDENTIFIED AS [YOUNG], WORKING AS […]".
   const slot = (val) => `[${val || '?'}]`;
   return {
-    text: `IDENTIFIED AS ${slot(v.bio)}, WORKING AS ${slot(v.prof)}, LOCATED IN ${slot(v.geo)}, NETWORKED WITHIN ${slot(v.socio)}, VALUED AS ${slot(v.econ)}, AND EXHIBITING ${slot(v.psycho)}.`,
+    text: `IDENTIFIED AS ${slot(v.bio)}, LOCATED IN ${slot(v.geo)}, WORKING AS ${slot(v.prof)}, VALUED AS ${slot(v.econ)}, NETWORKED WITHIN ${slot(v.socio)}, AND EXHIBITING ${slot(v.psycho)}.`,
     vocables: v
   };
 }

@@ -35,10 +35,10 @@ function rSentence(){
   const el=document.getElementById('sentenceEl'),v=sentence.vocables;
   const pts=[
     {t:'IDENTIFIED AS ',p:1},{c:'bio'},
-    {t:', WORKING AS ',p:1},{c:'prof'},
     {t:', LOCATED IN ',p:1},{c:'geo'},
-    {t:', NETWORKED WITHIN ',p:1},{c:'socio'},
+    {t:', WORKING AS ',p:1},{c:'prof'},
     {t:', VALUED AS ',p:1},{c:'econ'},
+    {t:', NETWORKED WITHIN ',p:1},{c:'socio'},
     {t:', AND EXHIBITING ',p:1},{c:'psycho'},
     {t:'.',p:1}
   ];

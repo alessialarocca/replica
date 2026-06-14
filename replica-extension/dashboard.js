@@ -128,9 +128,6 @@ function renderCategories() {
     if (isUnresolved) {
       card.classList.add('unresolved');
       statusHTML = '<span class="cat-status inactive">AWAITING</span>';
-    } else if (state.isDecontextualized) {
-      card.classList.add('decontext');
-      statusHTML = '<span class="cat-status decontext">DECONTEXT</span>';
     } else if (state.poisonLevel > 0) {
       statusHTML = '<span class="cat-status poisoned">POISONED</span>';
     } else if (state.amplifyLevel > 0) {
@@ -145,6 +142,13 @@ function renderCategories() {
       : '—';
     const prop = state.propagation >= 7 ? 'HIGH' : state.propagation >= 3 ? 'MID' : 'LOW';
     const n = state.dataPoints ? state.dataPoints.length : 0;
+    let dcCount = 0;
+    if (state.isDecontextualized) {
+      dcCount = (state.dataPoints || []).filter(dp => dp.decontextualized).length || 1;
+    }
+    const dcLine = dcCount > 0
+      ? `<div class="cat-dc-count">${dcCount} EVENT${dcCount !== 1 ? 'S' : ''} DECONTEXTUALIZED</div>`
+      : '';
 
     card.innerHTML = `
       <div class="cat-card-header">
@@ -162,6 +166,7 @@ function renderCategories() {
         <span>${n} EVENT${n !== 1 ? 'S' : ''} RECORDED</span>
         <span>&gt;</span>
       </div>
+      ${dcLine}
     `;
     grid.appendChild(card);
   });

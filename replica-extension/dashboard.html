@@ -23,9 +23,9 @@
       --color-metal:  #828782;
       --border-default: #D4D4D4;
       --accent-amplify:   #1DFF5D;
-      --accent-poison:    #FF5E1F;
-      --accent-decontext: #5E1FFF;
-      --decontext-bg:     #EFE8FF;
+      --accent-poison:    #5E1FFF;
+      --accent-decontext: #FF5E1F;
+      --decontext-bg:     rgba(255,94,31,0.10);
 
       --bg:            var(--neutral-300);
       --surface:       var(--neutral-50);
@@ -172,7 +172,6 @@
       transition: box-shadow .15s;
     }
     .cat-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
-    .cat-card.decontext { box-shadow: inset 0 0 0 1px var(--accent-decontext); }
     .cat-card.unresolved { opacity: 0.55; cursor: default; }
 
     .cat-card-header {
@@ -213,7 +212,6 @@
       color: var(--text);
       text-transform: none;
     }
-    .cat-card.decontext .cat-vocable { color: var(--accent-decontext); }
     .cat-card.unresolved .cat-vocable { font-size: 18px; color: var(--text-mid); }
 
     .cat-sum {
@@ -247,6 +245,18 @@
       text-transform: uppercase;
       color: var(--text);
       margin-top: auto;
+    }
+    .cat-dc-count {
+      display: inline-flex;
+      align-self: flex-start;
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: var(--accent-decontext);
+      background: var(--surface);
+      border: 1px solid var(--accent-decontext);
+      padding: 2px 10px;
+      margin-top: var(--space-xs);
     }
 
     /* ── Decontext panel (full width) ──────────── */

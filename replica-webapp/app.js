@@ -125,7 +125,6 @@ function rIslands(){
     if(nil)c.classList.add('nil');else if(st.isDecontextualized)c.classList.add('dc');
     let status='<span class="cat-status">STABLE</span>';
     if(nil)status='<span class="cat-status inactive">AWAITING</span>';
-    else if(st.isDecontextualized)status='<span class="cat-status dc">DECONTEXT</span>';
     else if(st.poisonLevel>0) status='<span class="cat-status poi">POISONED</span>';
     else if(st.amplifyLevel>0)status='<span class="cat-status amp">AMPLIFIED</span>';
     else if(st.weight>0&&st.weight<0.3) status='<span class="cat-status inactive">UNSTABLE</span>';
@@ -135,6 +134,11 @@ function rIslands(){
     const age=st.dataPoints&&st.dataPoints.length?timeAgo(st.dataPoints[0].timestamp||profile.lastUpdated):'—';
     const eyebrow=CAT_LABELS[cat].toUpperCase();
     const titleText=nil?'—':titleCase(voc);
+    let dcCount=0;
+    if(st.isDecontextualized){
+      dcCount=(st.dataPoints||[]).filter(dp=>dp.decontextualized).length||1;
+    }
+    const dcLine=dcCount>0?`<div class="cat-dc-count">${dcCount} EVENT${dcCount!==1?'S':''} DECONTEXTUALIZED</div>`:'';
     c.innerHTML=`
       <div class="cat-head">
         <span class="cat-eyebrow">${eyebrow}</span>
@@ -150,7 +154,8 @@ function rIslands(){
       <div class="cat-foot">
         <span>${n} EVENT${n!==1?'S':''} RECORDED</span>
         <span>&gt;</span>
-      </div>`;
+      </div>
+      ${dcLine}`;
     if(!nil)c.addEventListener('click',()=>openDetail(cat));
     grid.appendChild(c);
   });
@@ -257,7 +262,6 @@ function openDetail(cat){
   // Match the status chip from the closed card
   let statusHTML='<span class="cat-status">STABLE</span>';
   if(voc==null) statusHTML='<span class="cat-status inactive">AWAITING</span>';
-  else if(isDC) statusHTML='<span class="cat-status dc">DECONTEXT</span>';
   else if(st.poisonLevel>0) statusHTML='<span class="cat-status poi">POISONED</span>';
   else if(st.amplifyLevel>0) statusHTML='<span class="cat-status amp">AMPLIFIED</span>';
   else if(st.weight>0&&st.weight<0.3) statusHTML='<span class="cat-status inactive">UNSTABLE</span>';
@@ -330,7 +334,7 @@ function openDetail(cat){
             <span class="cat-eyebrow">${CAT_LABELS[cat].toUpperCase()}</span>
             ${statusHTML}
           </div>
-          <div class="detail-title" style="${isDC?'color:var(--accent-decontext)':''}">${voc?titleCase(voc):'No data yet'}</div>
+          <div class="detail-title">${voc?titleCase(voc):'No data yet'}</div>
           <div class="detail-summary">${CAT_SUM[cat]||''}</div>
         </div>
 

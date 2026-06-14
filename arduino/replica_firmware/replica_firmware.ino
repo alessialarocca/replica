@@ -5,13 +5,13 @@
 // e-ink mostra SOLO la frase: la parola della categoria
 // selezionata (encoder 1) viene riquadrata in nero. Il LED
 // segnala il modo (encoder 2). Su ogni nuova decontestualizzazione
-// il LED fa due lampi viola e poi torna al colore del modo.
+// il LED fa due lampi arancioni e poi torna al colore del modo.
 //
 // Mappatura LED a regime:
-//   ORANGE → modo POISON
+//   PURPLE → modo POISON
 //   GREEN  → modo AMPLIFY
 //   OFF    → modo NEUTRAL
-// Su nuova decontestualizzazione → 2 lampi PURPLE → ritorno a regime.
+// Su nuova decontestualizzazione → 2 lampi ORANGE → ritorno a regime.
 //
 // Librerie richieste (Library Manager):
 //   - GxEPD2 (ZinggJM)              — driver Waveshare e-ink
@@ -190,8 +190,8 @@ String        currentMode     = "neutral";
 String        decontextSignature = "";
 int           decontextCount     = 0;
 
-// Stato animazione LED — 2 lampi viola: ON-OFF-ON-OFF (4 step da 250 ms)
-enum LedAnim { LED_NONE, LED_BLINK_PURPLE };
+// Stato animazione LED — 2 lampi arancioni: ON-OFF-ON-OFF (4 step da 250 ms)
+enum LedAnim { LED_NONE, LED_BLINK_ORANGE };
 LedAnim       ledAnim       = LED_NONE;
 int           ledAnimStep   = 0;
 unsigned long ledAnimNextMs = 0;
@@ -336,7 +336,7 @@ void writeLED(RGB c) {
 // è solo un blink temporaneo, non uno stato persistente).
 RGB steadyColor(int mode) {
   if (mode > 0) return COL_GREEN;
-  if (mode < 0) return COL_ORANGE;
+  if (mode < 0) return COL_PURPLE;
   return COL_OFF;
 }
 
@@ -349,12 +349,12 @@ void applySteadyLED(int mode) {
 }
 
 void triggerDecontextBlink() {
-  ledAnim       = LED_BLINK_PURPLE;
+  ledAnim       = LED_BLINK_ORANGE;
   ledAnimStep   = 0;
   ledAnimNextMs = millis();
 }
 
-// Avanza il blink (2 lampi). Step 0,2 = ON viola; 1,3 = OFF.
+// Avanza il blink (2 lampi). Step 0,2 = ON arancione; 1,3 = OFF.
 void tickLedAnim(int mode) {
   if (ledAnim == LED_NONE) return;
   unsigned long now = millis();
@@ -364,7 +364,7 @@ void tickLedAnim(int mode) {
     applySteadyLED(mode);
     return;
   }
-  RGB c = (ledAnimStep % 2 == 0) ? COL_PURPLE : COL_OFF;
+  RGB c = (ledAnimStep % 2 == 0) ? COL_ORANGE : COL_OFF;
   writeLED(c);
   lastLedColor = c;
   ledAnimStep++;
@@ -715,12 +715,12 @@ void handleSentencePost() {
   decontextSignature = newSig;
 
   server.send(200, "application/json", "{\"ok\":true}");
-  // Blink viola SINCRONO prima del redraw, così il LED reagisce
+  // Blink arancione SINCRONO prima del redraw, così il LED reagisce
   // subito anche con encoder 2 in POISON/AMPLIFY — durante i 2 s di
   // full refresh la loop() resta bloccata e tickLedAnim non gira.
   if (changedAndNonEmpty) {
     for (int i = 0; i < 2; i++) {
-      writeLED(COL_PURPLE);
+      writeLED(COL_ORANGE);
       delay(250);
       writeLED(COL_OFF);
       delay(250);

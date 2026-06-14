@@ -63,13 +63,16 @@ function rCats(){
     const st=profile.categories[cat],voc=sentence.vocables[cat],nil=voc===null||voc===undefined;
     const c=document.createElement('div');c.className='island';
     if(nil)c.classList.add('nil');
-    else if(st.isDecontextualized)c.classList.add('dc');
     let badge=`<span class="isl-badge">STABLE</span>`;
     if(nil) badge=`<span class="isl-badge inactive">AWAITING</span>`;
-    else if(st.isDecontextualized) badge=`<span class="isl-badge dc">DECONTEXT</span>`;
     else if(st.poisonLevel>0)      badge=`<span class="isl-badge poi">POISONED</span>`;
     else if(st.amplifyLevel>0)     badge=`<span class="isl-badge amp">AMPLIFIED</span>`;
-    c.innerHTML=`<div class="isl-head"><span class="isl-lbl">${CAT_LABELS[cat].toUpperCase()}</span>${badge}</div><div class="isl-val">${nil?'—':voc}</div>`;
+    let dcCount=0;
+    if(!nil && st.isDecontextualized){
+      dcCount=(st.dataPoints||[]).filter(dp=>dp.decontextualized).length||1;
+    }
+    const dcLine=dcCount>0?`<div class="isl-dc-count">${dcCount} DECONTEXTUALIZED</div>`:'';
+    c.innerHTML=`<div class="isl-head"><span class="isl-lbl">${CAT_LABELS[cat].toUpperCase()}</span>${badge}</div><div class="isl-val">${nil?'—':voc}</div>${dcLine}`;
     if(!nil)c.addEventListener('click',()=>chrome.tabs.create({url:'https://alessialarocca.github.io/replica/replica-webapp/index.html'}));
     g.appendChild(c);
   });

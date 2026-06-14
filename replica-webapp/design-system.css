@@ -82,6 +82,7 @@
   --color-green:        #1DFF5D;
   --color-purple:       #5E1FFF;
   --color-orange:       #FF5E1F;
+  --brand-orange-100:   #FFF0E8;
 
   /* Semantic aliases (new-style) */
   --bg:                 var(--neutral-300);   /* page bg */
@@ -94,13 +95,13 @@
   --text-dim:           #B0B2B0;
 
   --accent-amplify:     var(--color-green);
-  --accent-poison:      var(--color-orange);
-  --accent-decontext:   var(--color-purple);
+  --accent-poison:      var(--color-purple);
+  --accent-decontext:   var(--color-orange);
 
   --amplify-bg:         rgba(29,255,93,0.10);
-  --poison-bg:          rgba(255,94,31,0.10);
-  --decontext-bg:       #EFE8FF;   /* data/decontext-bg from Figma */
-  --decontext-border:   rgba(94,31,255,0.25);
+  --poison-bg:          #EFE8FF;
+  --decontext-bg:       var(--brand-orange-100);
+  --decontext-border:   rgba(255,94,31,0.25);
 
   /* Semantic — UI feedback (not data state) */
   --color-error:        #B91C1C;

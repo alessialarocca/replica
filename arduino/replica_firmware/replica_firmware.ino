@@ -284,7 +284,7 @@ String renderedCmdSignature = "";
 // cancella il flag).
 bool          dcBlinkState  = false;
 unsigned long dcBlinkNextMs = 0;
-const unsigned long DC_BLINK_INTERVAL_MS = 1800;
+const unsigned long DC_BLINK_INTERVAL_MS = 800;
 
 // "Enter action mode" hint quando l'utente clicca encoder 1 in
 // UI_IDLE (encoder 2 = neutral, nessuna azione da committare).
@@ -294,6 +294,17 @@ const unsigned long HINT_WINDOW_MS = 2200;
 // Lista parole decontestualizzate (uppercase) ricevute dall'ultimo
 // POST /sentence. È quella che già usavamo per il blink del LED.
 String        decontextWords[8];
+
+// Animazione "scramble" — viene innescata quando la previsione di una
+// o più categorie cambia (nuovo /sentence POST con vocaboli diversi):
+// quelle parole appaiono prima come lettere random per alcuni frame,
+// poi si stabilizzano sul nuovo vocabolo. Niente scramble al cambio di
+// selezione utente: la rotazione dell'encoder 1 fa un partial refresh
+// "secco" senza animazione.
+bool          scrambleActive       = false;
+uint32_t      scrambleSeed         = 0;
+const int     SCRAMBLE_FRAMES      = 4;       // frame random prima della parola vera
+bool          scrambleCat[N_CAT]   = { false, false, false, false, false, false };
 
 // ─────────────────────────────────────────────────────────────
 // Encoder ISRs
@@ -480,11 +491,16 @@ int findVocableRange(String words[], int wCount, const String& voc, int& outEnd)
 
 // Disegna la frase con IBM Plex Mono 6pt (~7x8 cell, cap-height 7).
 // Tre stati visivi per parola:
-//  - SELEZIONATA (encoder 1) → sfondo nero stabile
-//  - DECONTESTUALIZZATA      → sfondo nero solo se dcBlinkState (lampeggio)
+//  - SELEZIONATA (encoder 1) → sfondo nero stabile, testo bianco
+//  - DECONTESTUALIZZATA      → lampeggio del testo (visibile ↔ invisibile,
+//                              senza sfondo nero)
 //  - resto                   → testo nero su bianco
 void drawSentence(int catIdx) {
   display.fillScreen(GxEPD_WHITE);
+  // Linea di separazione frase/command line, ridisegnata su OGNI
+  // refresh dell'area frase per evitare ghosting/fade: i partial
+  // window sopra includono la riga y=SENT_H proprio per questo.
+  display.drawFastHLine(0, SENT_H, SCREEN_W, GxEPD_BLACK);
   display.setFont(&IBMPlexMono_Regular6pt7b);
   display.setTextWrap(false);
   display.setTextColor(GxEPD_BLACK);
@@ -550,6 +566,20 @@ void drawSentence(int catIdx) {
     if (st >= 0) { dcStart[dcRanges] = st; dcEndArr[dcRanges] = e; dcRanges++; }
   }
 
+  // Range delle categorie che devono lampeggiare di lettere random
+  // (scramble): popolate al di fuori, in handleSentencePost, quando la
+  // previsione di una o più categorie cambia.
+  int scStart[N_CAT], scEndArr[N_CAT]; int scRanges = 0;
+  if (scrambleActive) {
+    for (int c = 0; c < N_CAT && scRanges < N_CAT; c++) {
+      if (!scrambleCat[c]) continue;
+      if (catVocables[c].length() == 0) continue;
+      int e;
+      int st = findVocableRange(words, wCount, catVocables[c], e);
+      if (st >= 0) { scStart[scRanges] = st; scEndArr[scRanges] = e; scRanges++; }
+    }
+  }
+
   int cursorX = MARGIN;
   int cursorY = MARGIN + ASCENT;        // baseline della prima riga
   bool prevHighlighted = false;
@@ -571,8 +601,18 @@ void drawSentence(int catIdx) {
     for (int r = 0; r < dcRanges; r++) {
       if (i >= dcStart[r] && i <= dcEndArr[r]) { inDecontext = true; break; }
     }
+    bool inScramble = false;
+    for (int r = 0; r < scRanges; r++) {
+      if (i >= scStart[r] && i <= scEndArr[r]) { inScramble = true; break; }
+    }
 
-    bool blackBg = inSelection || (inDecontext && dcBlinkState);
+    // Solo la selezione ha lo sfondo nero. La decontestualizzazione invece
+    // fa LAMPEGGIARE il testo (visibile ↔ invisibile, nessun riquadro):
+    // quando dcBlinkState è false e la parola è decontext, saltiamo il
+    // print() lasciando la cella vuota — lo spazio resta perché cursorX
+    // avanza comunque di wbw.
+    bool blackBg  = inSelection;
+    bool hideText = inDecontext && !dcBlinkState;
 
     if (blackBg) {
       int x = cursorX - 1;
@@ -588,8 +628,23 @@ void drawSentence(int catIdx) {
     } else {
       display.setTextColor(GxEPD_BLACK);
     }
-    display.setCursor(cursorX, cursorY);
-    display.print(words[i]);
+    if (!hideText) {
+      display.setCursor(cursorX, cursorY);
+      if (scrambleActive && inScramble) {
+        // Sostituisce i glifi con lettere maiuscole random — la sequenza
+        // è derivata da scrambleSeed + indice parola + indice glifo, così
+        // ogni rerender dello stesso frame produce sempre gli stessi
+        // caratteri (no flicker se l'e-ink ripagina).
+        for (int k = 0; k < (int)words[i].length(); k++) {
+          uint32_t h = scrambleSeed * 2654435761u
+                     + (uint32_t)i * 1000003u
+                     + (uint32_t)k * 65537u;
+          display.write((char)('A' + (h % 26)));
+        }
+      } else {
+        display.print(words[i]);
+      }
+    }
     cursorX += wbw;
     prevHighlighted = blackBg;
   }
@@ -689,6 +744,24 @@ void redrawAllPartial(int catIdx, int mode) {
   renderedCmdSignature = cmdLineSignature(mode, intensityIdx);
 }
 
+// Esegue l'animazione di scramble sulla frase: SCRAMBLE_FRAMES frame
+// di lettere random sulle categorie segnate in scrambleCat[], poi reset.
+// Il "frame finale" col testo reale lo dipinge il chiamante (di solito
+// redrawAllFull dopo l'arrivo di un nuovo /sentence).
+void runScrambleAnimation(int catIdxForHighlight) {
+  for (int f = 0; f < SCRAMBLE_FRAMES; f++) {
+    scrambleSeed   = (uint32_t)(millis() ^ (f * 0x9E3779B9u));
+    scrambleActive = true;
+    display.setRotation(3);
+    // +1 → include la riga separatrice y=SENT_H nel refresh.
+    display.setPartialWindow(0, 0, SCREEN_W, SENT_H + 1);
+    display.firstPage();
+    do { drawSentence(catIdxForHighlight); } while (display.nextPage());
+  }
+  scrambleActive = false;
+  for (int i = 0; i < N_CAT; i++) scrambleCat[i] = false;
+}
+
 // Partial refresh della sola command line — usato durante
 // UI_ACTION_SELECT (cambio intensità) e UI_UNDO (countdown).
 void redrawCommandLineOnly(int mode) {
@@ -748,10 +821,14 @@ void handleSentencePost() {
   const char* txt = doc["text"];
   if (txt) currentSentence = String(txt);
 
-  // Mappa categoria → vocabolo
+  // Mappa categoria → vocabolo (e diff con la previsione precedente:
+  // ogni categoria con vocabolo nuovo non vuoto viene marcata per
+  // l'animazione di scramble).
   JsonObject vocObj = doc["vocables"].as<JsonObject>();
   Serial.print("vocables ->");
+  bool anyScramble = false;
   for (int i = 0; i < N_CAT; i++) {
+    String oldVoc = catVocables[i];
     catVocables[i] = "";
     if (!vocObj.isNull()) {
       const char* v = vocObj[CAT_KEYS[i]];
@@ -761,8 +838,11 @@ void handleSentencePost() {
         catVocables[i] = s;
       }
     }
+    scrambleCat[i] = (catVocables[i].length() > 0 && catVocables[i] != oldVoc);
+    if (scrambleCat[i]) anyScramble = true;
     Serial.print(' '); Serial.print(CAT_KEYS[i]); Serial.print('=');
     Serial.print(catVocables[i].length() ? catVocables[i] : String("?"));
+    if (scrambleCat[i]) Serial.print('*');   // segna i cambiati nel log
   }
   Serial.println();
 
@@ -798,7 +878,13 @@ void handleSentencePost() {
     }
     applySteadyLED(renderedMode);
   }
-  redrawAllFull(renderedCatIdx >= 0 ? renderedCatIdx : 0, renderedMode);
+  // Scramble pre-refresh sulle previsioni cambiate (se ce ne sono).
+  // Il flag scrambleCat[] è già stato popolato dal diff sopra.
+  int catForHighlight = renderedCatIdx >= 0 ? renderedCatIdx : 0;
+  if (anyScramble) {
+    runScrambleAnimation(catForHighlight);
+  }
+  redrawAllFull(catForHighlight, renderedMode);
 }
 
 // /action — risponde con:
@@ -1170,6 +1256,8 @@ void loop() {
     } else {
       Serial.println("Cat   -> (hidden, 10s idle)");
     }
+    // Cambio selezione utente → partial refresh secco, niente animazione.
+    // (Lo scramble è riservato ai cambi di previsione del sistema.)
     redrawAllPartial(displayedCatIdx, mode);
   }
 
@@ -1236,9 +1324,10 @@ void loop() {
     if (millis() >= dcBlinkNextMs) {
       dcBlinkState = !dcBlinkState;
       dcBlinkNextMs = millis() + DC_BLINK_INTERVAL_MS;
-      // Partial refresh della sola area frase
+      // Partial refresh dell'area frase (+1 px per includere la riga
+      // separatrice in y=SENT_H, ridisegnata da drawSentence).
       display.setRotation(3);
-      display.setPartialWindow(0, 0, SCREEN_W, SENT_H);
+      display.setPartialWindow(0, 0, SCREEN_W, SENT_H + 1);
       display.firstPage();
       do { drawSentence(renderedCatIdx); } while (display.nextPage());
     }

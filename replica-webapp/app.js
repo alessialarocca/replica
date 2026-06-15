@@ -91,7 +91,7 @@ function rLed(){
 }
 
 function rSentence(){
-  const el=document.getElementById('sentenceEl'),v=sentence.vocables;
+  const v=sentence.vocables;
   // Sentence pattern — must mirror background.js `buildSentence()` and popup.js.
   const pts=[
     {t:'IDENTIFIED AS ',p:1},{c:'bio'},
@@ -102,12 +102,13 @@ function rSentence(){
     {t:', AND EXHIBITING ',p:1},{c:'psycho'},
     {t:'.',p:1}
   ];
+  const el=document.getElementById('currentProfileSent');
+  if(!el)return;
   el.innerHTML='';
   pts.forEach(pt=>{
     if(pt.p){el.appendChild(document.createTextNode(pt.t));return;}
     const voc=v[pt.c],nil=voc==null;
-    const st=profile.categories[pt.c];
-    el.insertAdjacentHTML('beforeend',`<span>[${nil?'?':voc}]</span>`);
+    el.insertAdjacentHTML('beforeend',`<span class="cp-voc" data-cat="${pt.c}">[${nil?'?':voc}]</span>`);
   });
 }
 
@@ -118,6 +119,18 @@ function titleCase(s){
 function rIslands(){
   const grid=document.getElementById('catGrid');
   grid.innerHTML='';
+  // Column header row
+  grid.insertAdjacentHTML('beforeend',`
+    <div class="cat-card cat-header">
+      <div class="cat-col cat-col-status">STATUS</div>
+      <div class="cat-col cat-col-name">CATEGORY</div>
+      <div class="cat-col cat-col-value">VALUE</div>
+      <div class="cat-col cat-col-w">WEIGHT</div>
+      <div class="cat-col cat-col-a">AGE</div>
+      <div class="cat-col cat-col-p">PROPAGATION</div>
+      <div class="cat-col cat-col-n">EVENTS</div>
+      <div class="cat-col cat-col-dc">DECONTEXT.</div>
+    </div>`);
   CAT_ORDER.forEach(cat=>{
     const st=profile.categories[cat],voc=sentence.vocables[cat],nil=voc==null;
     const c=document.createElement('div');c.className='cat-card';
@@ -131,31 +144,24 @@ function rIslands(){
     const w=(st.weight||0).toFixed(2);
     const prop=st.propagation>=7?'HIGH':st.propagation>=3?'MID':'LOW';
     const age=st.dataPoints&&st.dataPoints.length?timeAgo(st.dataPoints[0].timestamp||profile.lastUpdated):'—';
-    const eyebrow=CAT_LABELS[cat].toUpperCase();
+    const eyebrow=CAT_LABELS[cat];
     const titleText=nil?'—':titleCase(voc);
     let dcCount=0;
     if(st.isDecontextualized){
       dcCount=(st.dataPoints||[]).filter(dp=>dp.decontextualized).length||1;
     }
-    const dcLine=dcCount>0?`<div class="cat-dc-count">${dcCount} EVENT${dcCount!==1?'S':''} DECONTEXTUALIZED</div>`:'';
+    c.dataset.cat=cat;
     c.innerHTML=`
-      <div class="cat-head">
+      <div class="cat-col cat-col-status">${status}</div>
+      <div class="cat-col cat-col-name">
         <span class="cat-eyebrow">${eyebrow}</span>
-        ${status}
       </div>
-      <div class="cat-title">${titleText}</div>
-      <div class="cat-sum">${nil?'Awaiting signal. Browse the web to populate this category.':CAT_SUM[cat]}</div>
-      <div class="cat-pills">
-        <span class="cat-pill">WEIGHT: ${w}</span>
-        <span class="cat-pill">AGE: ${age}</span>
-        <span class="cat-pill">PROPAGATION:${prop}</span>
-      </div>
-      <div class="cat-foot">
-        <span>${n} EVENT${n!==1?'S':''} RECORDED</span>
-        <span>&gt;</span>
-      </div>
-      ${dcLine}`;
-    if(!nil)c.addEventListener('click',()=>openDetail(cat));
+      <div class="cat-col cat-col-value"><span class="cat-title">${titleText}</span></div>
+      <div class="cat-col cat-col-w">${nil?'—':w}</div>
+      <div class="cat-col cat-col-a">${age}</div>
+      <div class="cat-col cat-col-p">${nil?'—':prop}</div>
+      <div class="cat-col cat-col-n">${n}</div>
+      <div class="cat-col cat-col-dc">${dcCount>0?`<span class="cat-dc-count">${dcCount}</span>`:'—'}</div>`;
     grid.appendChild(c);
   });
 }
@@ -330,8 +336,8 @@ function openDetail(cat){
         <!-- Category title card -->
         <div class="ds-card">
           <div class="cat-head" style="margin-bottom:var(--space-md)">
-            <span class="cat-eyebrow">${CAT_LABELS[cat].toUpperCase()}</span>
             ${statusHTML}
+            <span class="cat-eyebrow">${CAT_LABELS[cat]}</span>
           </div>
           <div class="detail-title">${voc?titleCase(voc):'No data yet'}</div>
           <div class="detail-summary">${CAT_SUM[cat]||''}</div>
@@ -397,10 +403,6 @@ function parseLocalDay(s){
 }
 
 function rMem(){
-  // Update "current sentence" preview
-  const curEl=document.getElementById('memCurrentSent');
-  if(curEl) curEl.textContent=sentence?.text||'—';
-
   const snaps=(profile.snapshots||[]).slice();
   const now=new Date();
   const ws=startOfWeek(now);
@@ -602,6 +604,15 @@ function switchTab(t){
   activeTab=t;
 }
 document.addEventListener('DOMContentLoaded',()=>{
+  // Click a vocable in the Current Profile sentence → open that category's detail
+  document.getElementById('currentProfileSent').addEventListener('click',e=>{
+    const v=e.target.closest('.cp-voc');
+    if(!v)return;
+    const cat=v.dataset.cat;
+    if(!cat)return;
+    if(!sentence||sentence.vocables[cat]==null)return;
+    openDetail(cat);
+  });
   document.getElementById('wPrev').addEventListener('click',()=>{mWk--;mSelectedDay=null;rMem();});
   document.getElementById('wNext').addEventListener('click',()=>{if(mWk<0){mWk++;mSelectedDay=null;rMem();}});
   document.getElementById('wToday').addEventListener('click',()=>{mWk=0;mSelectedDay=isoDay(new Date());rMem();});

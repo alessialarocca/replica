@@ -101,17 +101,56 @@ body {
 }
 .meta-row span { color: var(--text); }
 
-/* ── DEVICE CARD (left column) ───────────── */
+/* ── CURRENT PROFILE HERO (top of dashboard, no card) ─ */
+.cp-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md) 0 var(--space-xl);
+}
+.cp-eyebrow {
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--text);
+}
+.cp-sentence {
+  font-family: 'Aeonik Mono', monospace;
+  font-weight: 500;
+  font-size: clamp(24px, 3.4vw, 44px);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.cp-sentence > span { display: inline; }
+.cp-sentence .cp-voc {
+  cursor: pointer;
+  padding: 0 4px;
+  transition: background .12s, color .12s;
+}
+.cp-sentence .cp-voc:hover {
+  background: var(--neutral-950);
+  color: var(--color-white);
+}
+
+@media (max-width: 640px) {
+  .cp-hero { padding: var(--space-sm) 0 var(--space-lg); }
+  .cp-sentence {
+    font-size: clamp(18px, 5.5vw, 26px);
+    line-height: 1.3;
+  }
+}
+
+/* ── DEVICE CARD (sidebar of dashboard) ───── */
 .device-card {
   background: var(--surface);
   border-radius: var(--radius-sm);
   padding: var(--space-lg);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-  align-items: start;
-  column-gap: var(--space-lg);
-  row-gap: var(--space-md);
-  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
 }
 .device-info {
   display: flex;
@@ -129,92 +168,84 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-md) 0;
-  min-height: 360px;
+  padding: var(--space-sm) 0;
+  min-height: 220px;
   height: 100%;
 }
 @media (max-width: 720px) {
-  .device-card { grid-template-columns: 1fr; }
-  .device-illu-wrap { min-height: 240px; }
+  .device-illu-wrap { min-height: 160px; }
 }
 .device-illu-img {
   position: relative;
   width: 100%;
-  max-width: 460px;
+  max-width: 280px;
 }
 .device-illu-img img { display: block; width: 100%; height: auto; }
-.device-sentence-box {
-  position: absolute;
-  /* Positioned to fit inside the screen rectangle of the device PNG */
-  top: 8%;
-  left: 41.5%;
-  right: 6%;
-  bottom: 70%;
-  display: block;
-  font-family: 'Aeonik Mono', monospace;
-  font-weight: 500;
-  /* Fluid: small box → small text. Capped at 9px on desktop. */
-  font-size: clamp(6px, 2vw, 9px);
-  line-height: 1.35;
-  text-transform: uppercase;
-  color: var(--text);
-  letter-spacing: 0;
-  padding: 6px 8px;
-  overflow: hidden;
-  text-align: left;
-  word-break: normal;
-  overflow-wrap: break-word;
-}
-.device-sentence-box > span { display: inline; }
 
 /* ── MAIN GRID (dashboard) ────────────────── */
 /* Stacked layout at all widths: replica device card full-width on top,
    category grid below — same vertical structure as the tablet view. */
 .dash-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
   gap: var(--space-md);
-}
-.dash-grid > .left-col {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.cat-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: 1fr;
-  gap: var(--space-md);
-  min-width: 0;
+  align-items: start;
 }
 @media (max-width: 960px) {
-  .cat-grid { grid-template-columns: 1fr 1fr; }
+  .dash-grid { grid-template-columns: 1fr; }
 }
-@media (max-width: 600px) {
-  .cat-grid { grid-template-columns: 1fr; grid-auto-rows: auto; }
-}
-
-/* ── CATEGORY CARDS (new-style) ──────────── */
-.cat-card {
-  background: var(--surface);
-  border-radius: var(--radius-sm);
-  padding: var(--space-lg);
-  cursor: pointer;
+.cat-grid {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
-  transition: box-shadow .15s;
+  min-width: 0;
 }
-.cat-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
-.cat-card.nil { cursor: default; }
+
+/* ── CATEGORY ROWS (single-card list) ──────── */
+.cat-card {
+  background: transparent;
+  border-radius: 0;
+  padding: var(--space-md) 0;
+  border-top: 1px solid var(--border);
+  cursor: default;
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1.4fr) minmax(0, 1fr) 60px 60px 80px 60px 70px;
+  gap: var(--space-md);
+  align-items: center;
+}
+.cat-card:first-child { border-top: none; padding-top: 0; }
+.cat-card:last-child { padding-bottom: 0; }
 .cat-card.nil .cat-title { color: var(--text-mid); }
 .cat-card.nil .cat-sum  { color: var(--text-mid); }
 
+/* Column header row */
+.cat-card.cat-header {
+  padding-bottom: var(--space-sm);
+}
+.cat-card.cat-header .cat-col {
+  font: var(--type-sys-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--text-mid);
+}
+
+/* Per-column tweaks */
+.cat-col { min-width: 0; }
+.cat-col-w, .cat-col-a, .cat-col-p, .cat-col-n, .cat-col-dc {
+  font: var(--type-code-block);
+  color: var(--text);
+}
+.cat-col-dc .cat-dc-count {
+  margin-top: 0;
+  align-self: auto;
+}
+
 .cat-head {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-  justify-content: space-between;
+  gap: var(--space-sm);
 }
+.cat-head .cat-status { align-self: flex-start; }
 .cat-eyebrow {
   font: var(--type-sys-header);
   text-transform: uppercase;
@@ -233,6 +264,11 @@ body {
 .cat-status.inactive { background: transparent; color: var(--neutral-700); border: 1px solid var(--neutral-700); padding: 1px 11px; }
 
 .cat-title {
+  font: var(--type-sys-header);
+  text-transform: uppercase;
+  color: var(--text);
+}
+.cat-head .cat-eyebrow {
   font: var(--type-h1);
   letter-spacing: -0.03125em;
   text-transform: none;
@@ -507,12 +543,14 @@ body {
 .nav-btns { display: flex; gap: 8px; }
 .nav-btn {
   width: 32px; height: 32px;
-  background: var(--neutral-300);
+  background: var(--surface);
   color: var(--text);
-  border: none;
+  border: 1px solid var(--border);
   cursor: pointer;
   font: var(--type-code-block);
+  transition: background .12s, color .12s;
 }
+.nav-btn:hover:not(:disabled) { background: var(--neutral-950); color: var(--color-white); border-color: var(--neutral-950); }
 .nav-btn:disabled { opacity: .3; cursor: default; }
 .dot-row { display: flex; gap: 16px; margin-bottom: var(--space-md); flex-wrap: wrap; }
 .mem-sent { font: var(--type-code-block); text-transform: uppercase; line-height: 1.85; }
@@ -523,28 +561,23 @@ body {
   text-align: center;
 }
 
-/* ── Save current sentence card ─────────────── */
+/* ── Memory hero heading ────────────────────── */
+.mem-hero {
+  font: var(--type-h1);
+  letter-spacing: -0.03125em;
+  color: var(--text);
+  padding: var(--space-md) 0 var(--space-xl);
+}
+
+/* ── Save snapshot action row ───────────────── */
 .mem-save {
   display: flex;
-  align-items: center;
-  gap: var(--space-lg);
-  background: var(--surface);
-  border-radius: var(--radius-sm);
-  padding: var(--space-lg);
+  justify-content: flex-end;
   margin-bottom: var(--space-xs);
 }
-.mem-save-left { flex: 1; min-width: 0; }
-.mem-save-eyebrow {
-  font: var(--type-sys-header);
-  text-transform: uppercase;
-  color: var(--text);
-  margin-bottom: var(--space-xs);
-}
-.mem-save-sentence {
-  font: var(--type-code-block);
-  text-transform: uppercase;
-  color: var(--text);
-  line-height: 1.5;
+/* Inline save button next to TODAY in the week-nav */
+.mem-week-nav .mem-save-btn {
+  padding: 6px 14px;
 }
 .mem-save-btn {
   flex-shrink: 0;
@@ -571,9 +604,9 @@ body {
 
 /* ── Week picker (calendar) ─────────────────── */
 .mem-week-picker {
-  background: var(--surface);
-  border-radius: var(--radius-sm);
-  padding: var(--space-md) var(--space-lg);
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
   margin-bottom: var(--space-md);
 }
 .mem-week-nav {
@@ -609,15 +642,15 @@ body {
   justify-content: center;
   gap: 4px;
   padding: var(--space-sm) 4px;
-  background: transparent;
+  background: var(--surface);
   border: 1px solid var(--border);
   cursor: pointer;
   color: var(--text);
-  transition: background .15s, border-color .15s;
+  transition: background .15s, border-color .15s, color .15s;
 }
 .mem-day:hover { border-color: var(--neutral-700); }
 .mem-day.has-snap { border-color: var(--neutral-950); }
-.mem-day.is-today { background: var(--neutral-300); }
+.mem-day.is-today { background: var(--color-white); border-color: var(--neutral-950); }
 .mem-day.is-selected { background: var(--neutral-950); color: var(--color-white); border-color: var(--neutral-950); }
 .mem-day.is-future { opacity: 0.35; cursor: default; pointer-events: none; }
 .mem-day-dow {
@@ -867,14 +900,9 @@ body {
     padding: 14px 8px;
   }
 
-  /* Memory: stack the save card */
-  .mem-save {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-md);
-  }
-  .mem-save-btn { width: 100%; }
-  .mem-week-picker { padding: var(--space-sm) var(--space-md); }
+  /* Memory: allow the week-nav controls to wrap on narrow screens */
+  .mem-week-nav { flex-wrap: wrap; }
+  .mem-week-picker { padding: 0; }
   .mem-week-days { gap: 4px; }
   .mem-day { padding: var(--space-xs) 2px; }
 
@@ -893,43 +921,13 @@ body {
   .p-row, .dz-row { flex-wrap: wrap; gap: var(--space-xs); }
 
   /* Device illustration shorter on mobile */
-  .device-illu-wrap { min-height: 240px; }
-
-  /* Device sentence: shrink the type & expand the box so the full quote fits */
-  .device-sentence-box {
-    bottom: 62%;          /* shorter box */
-    font-size: clamp(5px, 1.6vw, 7.5px);
-    line-height: 1.2;
-    padding: 4px 6px;
-  }
+  .device-illu-wrap { min-height: 160px; }
 
   /* Bar chart fits the viewport on mobile */
   .chart { gap: 3px; padding: 0; }
   .chart .bar { min-width: 0; }
   .hrs { gap: 3px; }
   .hr  { font-size: 9px; letter-spacing: 0.05em; }
-
-  /* Category cards in a single horizontal-scrolling row */
-  .cat-grid {
-    display: flex;
-    grid-template-columns: none;
-    grid-auto-rows: auto;
-    overflow-x: auto;
-    overflow-y: hidden;
-    flex-wrap: nowrap;
-    gap: var(--space-md);
-    /* Bleed to the viewport edges so cards can scroll edge-to-edge */
-    margin: 0 calc(var(--space-md) * -1);
-    padding: 0 var(--space-md) var(--space-xs);
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-  }
-  .cat-grid::-webkit-scrollbar { display: none; }
-  .cat-card {
-    flex: 0 0 78%;
-    max-width: 280px;
-    scroll-snap-align: start;
-  }
 
   /* Profile: EDIT PROFILE button stretches full-width on mobile */
   #scr-profile #btnEditProfile { width: 100%; }
@@ -943,9 +941,9 @@ body {
   <div class="topnav" id="topnav">
     <div class="topnav-logo"><img src="img/logo.svg" alt="Replica_"></div>
     <nav class="topnav-tabs">
-      <button class="ds-tab is-active" id="nv-device"  onclick="switchTab('device')">DEVICE</button>
+      <button class="ds-tab is-active" id="nv-device"  onclick="switchTab('device')">MY REPLICA</button>
       <button class="ds-tab"            id="nv-memory"  onclick="switchTab('memory')">MEMORY</button>
-      <button class="ds-tab"            id="nv-profile" onclick="switchTab('profile')">PROFILE</button>
+      <button class="ds-tab"            id="nv-profile" onclick="switchTab('profile')">SETTINGS</button>
     </nav>
   </div>
 
@@ -968,29 +966,35 @@ body {
     <!-- DEVICE -->
     <div class="screen active" id="scr-device">
       <div class="scroll">
+        <!-- TOP: Current profile hero sentence (no card background) -->
+        <div class="cp-hero">
+          <div class="cp-eyebrow">CURRENT PROFILE</div>
+          <div class="cp-sentence" id="currentProfileSent">Loading…</div>
+        </div>
+
         <div class="dash-grid">
-          <!-- LEFT: Single device card with meta on top + illustration filling the rest -->
-          <div class="left-col">
-            <div class="device-card">
-              <div class="device-info">
-                <div class="eyebrow">REPLICA_ MOD 01</div>
-                <div class="p-row"><span class="p-k">Status</span><span class="p-v" id="mStatus">Synced with device</span></div>
-                <div class="p-row"><span class="p-k">Last compilation</span><span class="p-v" id="mLast">—</span></div>
-                <div class="p-row"><span class="p-k">Events</span><span class="p-v" id="mPts">—</span></div>
-                <div class="p-row"><span class="p-k">Pairing status</span><span class="p-v" id="mDevStatus">—</span></div>
-                <div class="p-row"><span class="p-k">Device IP</span><span class="p-v" id="mDevIp">—</span></div>
-              </div>
-              <div class="device-illu-wrap">
-                <div class="device-illu-img">
-                  <img src="img/device_illustration.png" alt="Device">
-                  <div class="device-sentence-box" id="sentenceEl">Loading…</div>
-                </div>
+          <!-- Categories list (single card, one row per category) -->
+          <div class="ds-card">
+            <div class="cat-eyebrow" style="margin-bottom:var(--space-md)">CATEGORIES</div>
+            <div class="cat-grid" id="catGrid"></div>
+          </div>
+
+          <!-- Device card sits next to the categories -->
+          <div class="device-card">
+            <div class="device-info">
+              <div class="eyebrow">REPLICA_ MOD 01</div>
+              <div class="p-row"><span class="p-k">Status</span><span class="p-v" id="mStatus">Synced with device</span></div>
+              <div class="p-row"><span class="p-k">Last compilation</span><span class="p-v" id="mLast">—</span></div>
+              <div class="p-row"><span class="p-k">Events</span><span class="p-v" id="mPts">—</span></div>
+              <div class="p-row"><span class="p-k">Pairing status</span><span class="p-v" id="mDevStatus">—</span></div>
+              <div class="p-row"><span class="p-k">Device IP</span><span class="p-v" id="mDevIp">—</span></div>
+            </div>
+            <div class="device-illu-wrap">
+              <div class="device-illu-img">
+                <img src="img/device_illustration.png" alt="Device">
               </div>
             </div>
           </div>
-
-          <!-- RIGHT: 6 category cards in 2×3 equal-height grid -->
-          <div class="cat-grid" id="catGrid"></div>
         </div>
 
         <!-- Event panel -->
@@ -1020,27 +1024,22 @@ body {
     <!-- MEMORY -->
     <div class="screen" id="scr-memory">
       <div class="scroll">
-        <!-- Save current sentence -->
-        <div class="mem-save">
-          <div class="mem-save-left">
-            <div class="mem-save-eyebrow">CURRENT SENTENCE</div>
-            <div class="mem-save-sentence" id="memCurrentSent">—</div>
-          </div>
-          <button class="mem-save-btn" id="btnSaveSnap">SAVE TO MEMORY</button>
-        </div>
-        <div class="mem-save-status" id="memSaveStatus"></div>
+        <!-- Hero description at top -->
+        <h1 class="mem-hero">A static reflection of the algorithmic session. Snapshots are compiled automatically every day at <span id="memSnapTime">18:00</span>, or saved manually.</h1>
 
-        <!-- Week picker -->
+        <!-- Week picker with TODAY + SAVE TO MEMORY inline -->
         <div class="mem-week-picker">
-          <div class="body-desc">A static reflection of the algorithmic session. Snapshots are compiled automatically every day at <span id="memSnapTime">18:00</span>, or saved manually.</div>
           <div class="mem-week-nav">
             <button class="nav-btn" id="wPrev">←</button>
             <span class="mem-week-label" id="wRange">—</span>
             <button class="nav-btn" id="wNext">→</button>
             <button class="mem-week-today" id="wToday">TODAY</button>
+            <button class="mem-save-btn" id="btnSaveSnap">SAVE TO MEMORY</button>
           </div>
           <div class="mem-week-days" id="wDays"></div>
         </div>
+
+        <div class="mem-save-status" id="memSaveStatus"></div>
 
         <div id="wList"></div>
       </div>

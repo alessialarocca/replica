@@ -107,8 +107,7 @@ function rSentence(){
     if(pt.p){el.appendChild(document.createTextNode(pt.t));return;}
     const voc=v[pt.c],nil=voc==null;
     const st=profile.categories[pt.c];
-    let col='';if(!nil){if(st.isDecontextualized)col='color:var(--accent-decontext)';else if(st.poisonLevel>0)col='color:var(--accent-poison)';else if(st.amplifyLevel>0)col='color:var(--accent-amplify)';}
-    el.insertAdjacentHTML('beforeend',`<span style="${nil?'color:#555':col}">[${nil?'?':voc}]</span>`);
+    el.insertAdjacentHTML('beforeend',`<span>[${nil?'?':voc}]</span>`);
   });
 }
 
@@ -127,7 +126,7 @@ function rIslands(){
     if(nil)status='<span class="cat-status inactive">AWAITING</span>';
     else if(st.poisonLevel>0) status='<span class="cat-status poi">POISONED</span>';
     else if(st.amplifyLevel>0)status='<span class="cat-status amp">AMPLIFIED</span>';
-    else if(st.weight>0&&st.weight<0.3) status='<span class="cat-status inactive">UNSTABLE</span>';
+    else if(st.weight<0.3) status='<span class="cat-status inactive">UNSTABLE</span>';
     const n=st.dataPoints?st.dataPoints.length:0;
     const w=(st.weight||0).toFixed(2);
     const prop=st.propagation>=7?'HIGH':st.propagation>=3?'MID':'LOW';
@@ -264,7 +263,7 @@ function openDetail(cat){
   if(voc==null) statusHTML='<span class="cat-status inactive">AWAITING</span>';
   else if(st.poisonLevel>0) statusHTML='<span class="cat-status poi">POISONED</span>';
   else if(st.amplifyLevel>0) statusHTML='<span class="cat-status amp">AMPLIFIED</span>';
-  else if(st.weight>0&&st.weight<0.3) statusHTML='<span class="cat-status inactive">UNSTABLE</span>';
+  else if(st.weight<0.3) statusHTML='<span class="cat-status inactive">UNSTABLE</span>';
 
   let dcBox='';
   const alertsEnabled=!(profile.prefs && profile.prefs.decontextAlerts===false);
@@ -555,16 +554,20 @@ function savePreferences(){
 
 function renderPersonalInfo(){
   const userEl=document.getElementById('pUsername');
-  const idEl=document.getElementById('pDeviceId');
-  if(!userEl||!idEl) return;
+  if(!userEl) return;
   const name=(profile&&profile.username)||'';
   userEl.textContent=name||'Anonymous';
-  const idNode=document.getElementById('replica-ext-id');
-  idEl.textContent=(idNode&&idNode.dataset.id)||'—';
   const stEl=document.getElementById('pDevStatus');
   const ipEl=document.getElementById('pDevIp');
-  if(stEl) stEl.textContent=arduinoState.connected?'Paired':'Not paired';
-  if(ipEl) ipEl.textContent=arduinoState.ip||'—';
+  const pairing=arduinoState.connected?'Paired':'Not paired';
+  const ip=arduinoState.ip||'—';
+  if(stEl) stEl.textContent=pairing;
+  if(ipEl) ipEl.textContent=ip;
+  // Mirror device fields into the device card on the dashboard screen
+  const mSt=document.getElementById('mDevStatus');
+  const mIp=document.getElementById('mDevIp');
+  if(mSt) mSt.textContent=pairing;
+  if(mIp) mIp.textContent=ip;
 }
 
 /* modal */

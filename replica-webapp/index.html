@@ -106,24 +106,36 @@ body {
   background: var(--surface);
   border-radius: var(--radius-sm);
   padding: var(--space-lg);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  align-items: start;
+  column-gap: var(--space-lg);
+  row-gap: var(--space-md);
   flex: 1;
 }
-.device-card .eyebrow {
+.device-info {
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  min-width: 0;
+}
+.device-info > .eyebrow {
   font: var(--type-sys-header);
   text-transform: uppercase;
   color: var(--text);
+  margin-bottom: var(--space-sm);
 }
-.device-meta { display: flex; flex-direction: column; gap: 2px; }
 .device-illu-wrap {
-  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--space-md) 0;
   min-height: 360px;
+  height: 100%;
+}
+@media (max-width: 720px) {
+  .device-card { grid-template-columns: 1fr; }
+  .device-illu-wrap { min-height: 240px; }
 }
 .device-illu-img {
   position: relative;
@@ -156,10 +168,11 @@ body {
 .device-sentence-box > span { display: inline; }
 
 /* ── MAIN GRID (dashboard) ────────────────── */
+/* Stacked layout at all widths: replica device card full-width on top,
+   category grid below — same vertical structure as the tablet view. */
 .dash-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  align-items: stretch;
+  grid-template-columns: 1fr;
   gap: var(--space-md);
 }
 .dash-grid > .left-col {
@@ -169,14 +182,16 @@ body {
 }
 .cat-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-auto-rows: 1fr;
   gap: var(--space-md);
   min-width: 0;
 }
 @media (max-width: 960px) {
-  .dash-grid { grid-template-columns: 1fr; }
-  .cat-grid  { grid-auto-rows: auto; }
+  .cat-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 600px) {
+  .cat-grid { grid-template-columns: 1fr; grid-auto-rows: auto; }
 }
 
 /* ── CATEGORY CARDS (new-style) ──────────── */
@@ -260,9 +275,8 @@ body {
   align-self: flex-start;
   font: var(--type-sys-header);
   text-transform: uppercase;
-  color: var(--accent-decontext);
-  background: var(--surface);
-  border: 1px solid var(--accent-decontext);
+  color: var(--color-white);
+  background: var(--accent-decontext);
   padding: 2px 10px;
   margin-top: var(--space-xs);
 }
@@ -458,7 +472,7 @@ body {
 }
 .signal-tag.is-poi { background: var(--accent-poison);    color: var(--color-white); }
 .signal-tag.is-amp { background: var(--accent-amplify);   color: var(--neutral-950); }
-.signal-tag.is-dc  { background: var(--surface); color: var(--accent-decontext); border: 1px solid var(--accent-decontext); }
+.signal-tag.is-dc  { background: var(--accent-decontext); color: var(--color-white); }
 .signal-desc { font: var(--type-body-small); color: var(--text); }
 .signal-time { font: var(--type-sys-meta); color: var(--text-mid); text-align: right; }
 
@@ -694,9 +708,6 @@ body {
 .p-row:last-of-type { padding-bottom: 0; }
 .p-k { font: var(--type-body-base); }
 .p-v { font: var(--type-code-block); color: var(--text-mid); }
-.p-v-amp { color: var(--accent-amplify); }
-.p-v-poi { color: var(--accent-poison); }
-.p-v-dc  { color: var(--accent-decontext); }
 
 /* Pref controls — toggle switch + time input */
 .pref-right { display: inline-flex; align-items: center; gap: var(--space-sm); }
@@ -961,11 +972,13 @@ body {
           <!-- LEFT: Single device card with meta on top + illustration filling the rest -->
           <div class="left-col">
             <div class="device-card">
-              <div class="eyebrow">REPLICA_ MOD 01</div>
-              <div class="device-meta">
-                <div class="meta-row"><span>Status</span><span id="mStatus">Synced with device</span></div>
-                <div class="meta-row"><span>Last compilation:</span><span id="mLast">—</span></div>
-                <div class="meta-row"><span>Events:</span><span id="mPts">—</span></div>
+              <div class="device-info">
+                <div class="eyebrow">REPLICA_ MOD 01</div>
+                <div class="p-row"><span class="p-k">Status</span><span class="p-v" id="mStatus">Synced with device</span></div>
+                <div class="p-row"><span class="p-k">Last compilation</span><span class="p-v" id="mLast">—</span></div>
+                <div class="p-row"><span class="p-k">Events</span><span class="p-v" id="mPts">—</span></div>
+                <div class="p-row"><span class="p-k">Pairing status</span><span class="p-v" id="mDevStatus">—</span></div>
+                <div class="p-row"><span class="p-k">Device IP</span><span class="p-v" id="mDevIp">—</span></div>
               </div>
               <div class="device-illu-wrap">
                 <div class="device-illu-img">
@@ -1044,10 +1057,6 @@ body {
             <div class="p-row">
               <span class="p-k">Username</span>
               <span class="p-v" id="pUsername">—</span>
-            </div>
-            <div class="p-row">
-              <span class="p-k">Device ID</span>
-              <span class="p-v" id="pDeviceId" style="font-size:11px;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</span>
             </div>
             <div class="p-row">
               <span class="p-k">Paired device</span>

@@ -137,10 +137,10 @@
       border-bottom: 1px solid var(--border);
       cursor: pointer;
     }
-    .sentence-big .v.decontext { color: var(--accent-decontext); border-color: var(--accent-decontext); }
-    .sentence-big .v.poisoned  { color: var(--accent-poison);    border-color: var(--accent-poison); }
-    .sentence-big .v.amplified { color: var(--accent-amplify);   border-color: var(--accent-amplify); }
-    .sentence-big .v.unresolved { color: var(--text-mid); }
+    .sentence-big .v.decontext { color: var(--text); border-color: var(--border); }
+    .sentence-big .v.poisoned  { color: var(--text); border-color: var(--border); }
+    .sentence-big .v.amplified { color: var(--text); border-color: var(--border); }
+    .sentence-big .v.unresolved { color: var(--text); }
 
     .section-title {
       font-family: 'Aeonik Mono', monospace;
@@ -252,9 +252,8 @@
       font-family: 'Aeonik Mono', monospace;
       font-size: 12px;
       text-transform: uppercase;
-      color: var(--accent-decontext);
-      background: var(--surface);
-      border: 1px solid var(--accent-decontext);
+      color: var(--color-white);
+      background: var(--accent-decontext);
       padding: 2px 10px;
       margin-top: var(--space-xs);
     }
@@ -270,10 +269,13 @@
     }
     .decontext-panel.visible { display: block; }
     .decontext-panel-title {
+      display: inline-block;
       font-family: 'Aeonik Mono', monospace;
       font-size: 12px;
       text-transform: uppercase;
-      color: var(--accent-decontext);
+      background: var(--accent-decontext);
+      color: var(--color-white);
+      padding: 2px 10px;
       margin-bottom: var(--space-sm);
     }
     .decontext-entry {

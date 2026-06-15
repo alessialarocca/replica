@@ -67,6 +67,7 @@ function rCats(){
     if(nil) badge=`<span class="isl-badge inactive">AWAITING</span>`;
     else if(st.poisonLevel>0)      badge=`<span class="isl-badge poi">POISONED</span>`;
     else if(st.amplifyLevel>0)     badge=`<span class="isl-badge amp">AMPLIFIED</span>`;
+    else if(st.weight<0.3) badge=`<span class="isl-badge inactive">UNSTABLE</span>`;
     let dcCount=0;
     if(!nil && st.isDecontextualized){
       dcCount=(st.dataPoints||[]).filter(dp=>dp.decontextualized).length||1;

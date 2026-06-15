@@ -132,7 +132,7 @@ function renderCategories() {
       statusHTML = '<span class="cat-status poisoned">POISONED</span>';
     } else if (state.amplifyLevel > 0) {
       statusHTML = '<span class="cat-status amplified">AMPLIFIED</span>';
-    } else if (state.weight > 0 && state.weight < 0.3) {
+    } else if (state.weight < 0.3) {
       statusHTML = '<span class="cat-status inactive">UNSTABLE</span>';
     }
 

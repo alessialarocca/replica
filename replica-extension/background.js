@@ -40,6 +40,14 @@ const CLASSIFIERS = {
       'pension', 'pensione', 'retirement', 'aging', 'elderly', 'senior',
       'cardiology', 'cardiolog', 'osteoporosi', 'osteoporosis',
       'colonscopia', 'colonoscopy', 'prostate', 'prostata',
+      // gender-inference signals
+      'menswear', 'mens fashion', 'beard', 'shaving', 'razor', 'gillette',
+      'menshealth', 'andrology', 'urology', 'testosterone', 'erectile',
+      'boxer briefs',
+      'womenswear', 'lipstick', 'mascara', 'foundation', 'makeup', 'sephora',
+      'gynecology', 'ginecologia', 'menstruation', 'period tracker',
+      'ovulation', 'fertility', 'lingerie', 'nail polish', 'skincare',
+      'eyeliner', 'cosmetics',
     ],
     signals: {
       // life stage inference (primary for age)
@@ -51,6 +59,9 @@ const CLASSIFIERS = {
       fitness:    ['gym', 'fitness', 'workout', 'exercise', 'strava', 'myfitnesspal', 'runkeeper', 'fitbit', 'whoop', 'yoga', 'pilates', 'crossfit'],
       health:     ['health', 'medical', 'doctor', 'hospital', 'clinic', 'pharmacy', 'symptom', 'disease', 'medication', 'webmd', 'mayoclinic', 'humanitas', 'ospedale'],
       wellness:   ['wellness', 'nutrition', 'diet', 'sleep', 'mental', 'anxiety', 'therapy', 'meditation', 'headspace', 'calm'],
+      // gender hints — scored separately, never become topSignal
+      male:       ['menswear', 'mens fashion', 'beard', 'shaving', 'razor', 'gillette', 'menshealth', 'andrology', 'urology', 'prostate', 'prostata', 'testosterone', 'erectile', 'boxer briefs'],
+      female:     ['womenswear', 'lipstick', 'mascara', 'foundation', 'makeup', 'sephora', 'gynecology', 'ginecologia', 'pregnancy', 'gravidanza', 'menstruation', 'period tracker', 'ovulation', 'fertility', 'lingerie', 'nail polish', 'skincare', 'eyeliner', 'cosmetics'],
     }
   },
 
@@ -196,58 +207,58 @@ const VOCABLE_MAP = {
   bio: {
     // completes: "IDENTIFIED AS ___"
     bySignal: {
-      gen_z:      ['A YOUNG ADULT',             'AN EARLY-STAGE SUBJECT',    'A DIGITAL NATIVE'],
-      millennial: ['A LATE-MILLENNIAL SUBJECT',  'AN ESTABLISHED ADULT',      'A PRIME-AGE INDIVIDUAL'],
-      parent:     ['A PARENTAL UNIT',            'A FAMILY-STAGE SUBJECT',    'A CAREGIVER PROFILE'],
-      mature:     ['A MATURE INDIVIDUAL',        'A SENIOR-STAGE SUBJECT',    'AN OLDER ADULT'],
-      fitness:    ['A BODY-TRACKED SUBJECT',     'A FITNESS-MONITORED ADULT', 'A HIGH-PERFORMANCE BODY'],
-      health:     ['A HEALTH-SEEKING SUBJECT',   'A MEDICALLY ACTIVE USER',   'A CLINICAL PROFILE'],
-      wellness:   ['A WELLNESS-AWARE SUBJECT',   'A STRESS-MONITORED ADULT',  'AN OPTIMISED SELF'],
+      gen_z:      ['A YOUNG ADULT',             'A GEN-Z USER',              'A DIGITAL NATIVE'],
+      millennial: ['A LATE MILLENNIAL',         'AN ESTABLISHED ADULT',      'A WORKING-AGE ADULT'],
+      parent:     ['A PARENT',                  'A FAMILY ADULT',            'A CAREGIVER'],
+      mature:     ['A MATURE ADULT',            'A SENIOR ADULT',            'AN OLDER ADULT'],
+      fitness:    ['A FITNESS ENTHUSIAST',      'A TRACKED ATHLETE',         'A FIT ADULT'],
+      health:     ['A HEALTH SEEKER',           'A MEDICAL PATIENT',         'A HEALTHCARE USER'],
+      wellness:   ['A WELLNESS SEEKER',         'A STRESSED ADULT',          'A SELF-OPTIMISER'],
     },
-    fallback:   ['A BIOLOGICAL SUBJECT',         'A BODY-TRACKED UNIT',       'A BIOLOGICAL PROFILE'],
-    poisoned:   ['AN UNDEFINED BODY',            'A BIOLOGICAL NOISE SOURCE', 'AN UNRESOLVABLE SUBJECT', 'A SIGNAL VOID'],
-    amplified:  ['A VERIFIED ADULT',             'A HEALTH-OPTIMISED SUBJECT','A PRIME BIOLOGICAL UNIT', 'A CONFIRMED BODY'],
+    fallback:   ['A TRACKED PERSON',            'A MONITORED ADULT',         'A LOGGED USER'],
+    poisoned:   ['AN UNCLEAR PERSON',           'A SCRAMBLED IDENTITY',      'AN UNRESOLVED PERSON',    'A SIGNAL VOID'],
+    amplified:  ['A VERIFIED ADULT',            'A HEALTH-OPTIMISED PERSON', 'A PEAK-FIT ADULT',        'A CONFIRMED IDENTITY'],
   },
 
   geo: {
     // completes: "LOCATED IN ___"
     bySignal: {
-      urban:      ['AN URBAN ZONE',              'A METROPOLITAN AREA',       'A HIGH-DENSITY LOCALE'],
-      traveller:  ['A TRANSIT STATE',            'A MOBILITY CORRIDOR',       'A MULTI-LOCATION ZONE'],
-      local:      ['A PLACE-ANCHORED ZONE',      'A TRACKED LOCALITY',        'A LOCAL AREA'],
-      commuter:   ['A COMMUTER CORRIDOR',        'A DAILY TRANSIT ZONE',      'A MOBILITY-DENSE AREA'],
-      weather:    ['A MONITORED LOCALE',         'A GEO-ACTIVE ZONE',         'A COORDINATE-ANCHORED AREA'],
+      urban:      ['A CITY',                     'A METROPOLITAN AREA',       'A DENSE URBAN AREA'],
+      traveller:  ['A TRAVEL ROUTE',             'A MOBILITY CORRIDOR',       'A MULTI-CITY ROUTE'],
+      local:      ['A HOME NEIGHBOURHOOD',       'A TRACKED LOCALITY',        'A LOCAL AREA'],
+      commuter:   ['A COMMUTER CORRIDOR',        'A DAILY TRANSIT ROUTE',     'A COMMUTER ROUTE'],
+      weather:    ['A MONITORED AREA',           'A WEATHER-TRACKED AREA',    'A COORDINATE-ANCHORED AREA'],
     },
-    fallback:   ['A GEOLOCATED ZONE',            'AN ACTIVE LOCATION',        'A GEOGRAPHIC PROFILE'],
-    poisoned:   ['AN UNKNOWN ZONE',              'A LOCATION-NOISE AREA',     'A SPATIAL VOID',          'A COORDINATE-LOST ZONE'],
-    amplified:  ['A VERIFIED LOCALE',            'A CONFIRMED GEOGRAPHIC ZONE','A LOCATION-OPTIMISED AREA','A GEO-CONFIRMED ZONE'],
+    fallback:   ['A TRACKED LOCATION',           'AN ACTIVE LOCATION',        'A LOGGED PLACE'],
+    poisoned:   ['AN UNKNOWN PLACE',             'A NOISY LOCATION',          'A SPATIAL VOID',          'A LOST LOCATION'],
+    amplified:  ['A VERIFIED PLACE',             'A CONFIRMED LOCATION',      'A LOCATION-OPTIMISED AREA','A GEO-CONFIRMED PLACE'],
   },
 
   prof: {
     // completes: "WORKING AS ___"
     bySignal: {
-      creative:   ['A CREATIVE PROFESSIONAL',    'A VISUAL PRACTITIONER',     'A DESIGN WORKER'],
-      developer:  ['A TECHNICAL WORKER',         'A CODE PRACTITIONER',       'A SOFTWARE DEVELOPER'],
-      manager:    ['A MANAGERIAL WORKER',        'AN OPERATIONAL LEAD',       'A MANAGEMENT PROFILE'],
-      academic:   ['A KNOWLEDGE WORKER',         'A RESEARCH PRACTITIONER',   'AN ACADEMIC PROFILE'],
-      jobseeker:  ['A LABOUR MARKET ACTOR',      'A CAREER-SEEKING SUBJECT',  'A JOB-MARKET PROFILE'],
+      creative:   ['A CREATIVE PROFESSIONAL',    'A DESIGNER',                'A CREATIVE WORKER'],
+      developer:  ['A SOFTWARE ENGINEER',        'A PROGRAMMER',              'A SOFTWARE DEVELOPER'],
+      manager:    ['A MANAGER',                  'A TEAM LEAD',               'A BUSINESS MANAGER'],
+      academic:   ['A KNOWLEDGE WORKER',         'A RESEARCHER',              'AN ACADEMIC'],
+      jobseeker:  ['A JOB SEEKER',               'A CANDIDATE',               'AN APPLICANT'],
     },
-    fallback:   ['A PROFESSIONAL AGENT',         'AN OCCUPATIONALLY ACTIVE SUBJECT','AN OCCUPATIONAL PROFILE'],
-    poisoned:   ['AN UNCLASSIFIED WORKER',       'A ROLE-UNDEFINED SUBJECT',  'A SECTOR-NOISE ENTITY',   'AN OCCUPATION VOID'],
-    amplified:  ['A VERIFIED EXPERT',            'A CONFIRMED PROFESSIONAL',  'AN OPTIMISED WORKER',     'A ROLE-CONFIRMED AGENT'],
+    fallback:   ['A PROFESSIONAL',               'AN EMPLOYED ADULT',         'A WORKER'],
+    poisoned:   ['AN UNCLASSIFIED WORKER',       'A ROLE-LESS WORKER',        'AN UNCLEAR ROLE',         'AN UNKNOWN OCCUPATION'],
+    amplified:  ['A VERIFIED EXPERT',            'A CONFIRMED PROFESSIONAL',  'AN OPTIMISED WORKER',     'A ROLE-CONFIRMED EMPLOYEE'],
   },
 
   econ: {
     // completes: "VALUED AS ___"
     bySignal: {
-      shopper:    ['A HIGH-FREQUENCY BUYER',     'AN ACTIVE CONSUMER',        'A PURCHASE-DRIVEN SUBJECT'],
-      banking:    ['A FINANCIALLY ACTIVE SUBJECT','A BANKING-TRACKED UNIT',   'A FINANCIAL PROFILE'],
-      investor:   ['A RISK-TAKING INVESTOR',     'A MARKET-ACTIVE AGENT',     'A CAPITAL-ENGAGED SUBJECT'],
-      insured:    ['A CREDIT-AWARE SUBJECT',     'A DEBT-MANAGED UNIT',       'A FINANCIALLY MANAGED PROFILE'],
+      shopper:    ['A HIGH-FREQUENCY BUYER',     'AN ACTIVE CONSUMER',        'A FREQUENT SHOPPER'],
+      banking:    ['A BANK CUSTOMER',            'A TRACKED ACCOUNT HOLDER',  'A BANKING USER'],
+      investor:   ['A RISK-TAKING INVESTOR',     'AN ACTIVE TRADER',          'A MARKET INVESTOR'],
+      insured:    ['A CREDIT-AWARE CUSTOMER',    'A DEBT-MANAGED BORROWER',   'AN INSURED CUSTOMER'],
     },
-    fallback:   ['AN ECONOMICALLY ACTIVE SUBJECT','A SPEND-TRACKED UNIT',     'AN ECONOMIC PROFILE'],
-    poisoned:   ['AN ECONOMICALLY UNDEFINED UNIT','A SPEND-NOISE ENTITY',     'AN ECONOMIC VOID',        'A PURCHASE-NULL SUBJECT'],
-    amplified:  ['A HIGH-VALUE CONSUMER',        'AN ECONOMICALLY OPTIMISED SUBJECT','A VERIFIED SPENDER','A CONFIRMED ECONOMIC ASSET'],
+    fallback:   ['AN ACTIVE SPENDER',            'A TRACKED SHOPPER',         'A LOGGED CONSUMER'],
+    poisoned:   ['AN UNDEFINED SPENDER',         'A NOISY CONSUMER',          'A SPENDING VOID',         'A NON-SPENDER'],
+    amplified:  ['A HIGH-VALUE CONSUMER',        'A HIGH-VALUE BUYER',        'A VERIFIED SPENDER',      'A CONFIRMED HIGH-VALUE CUSTOMER'],
   },
 
   socio: {
@@ -295,7 +306,8 @@ function defaultProfile() {
     weight: 0,
     age: 0,
     propagation: 0,
-    topSignal: null   // dominant sub-signal (e.g. 'fitness', 'developer')
+    topSignal: null,  // dominant sub-signal (e.g. 'fitness', 'developer')
+    genderHint: null  // bio-only: 'male' | 'female' | null
   });
   return {
     categories: {
@@ -353,6 +365,14 @@ function computeVocable(cat, state) {
   // Pick tier based on score: 1-10 → tier0, 11-30 → tier1, 31+ → tier2
   const tier = state.score < 11 ? 0 : state.score < 31 ? 1 : 2;
 
+  // Bio: compose "A WOMAN IN HER 30s" / "A MAN IN HIS 20s" / "AN ADULT IN THEIR 40s"
+  // when we have gender and/or age-band signal. Body-only signals fall through
+  // to the generic bySignal/fallback path.
+  if (cat === 'bio') {
+    const composed = composeBioVocable(state);
+    if (composed) return composed;
+  }
+
   // Use topSignal if available
   const sig = state.topSignal;
   if (sig && map.bySignal[sig]) {
@@ -361,6 +381,35 @@ function computeVocable(cat, state) {
 
   // Fallback
   return map.fallback[Math.min(tier, map.fallback.length - 1)];
+}
+
+// Bio: build "A WOMAN IN HER 30s" / "AN ADULT IN THEIR 20s" /
+// "A FITNESS-FOCUSED MAN" etc. from gender hint + life-stage/body signal.
+// Returns null when no gender AND no age band are known — caller then
+// falls back to the generic body-only labels in VOCABLE_MAP.bio.
+function composeBioVocable(state) {
+  const g = state.genderHint;
+  const ageBand = {
+    gen_z:      '20s',
+    millennial: '30s',
+    parent:     '40s',
+    mature:     '60s',
+  }[state.topSignal];
+  const bodyAdj = {
+    fitness:  'FITNESS-FOCUSED',
+    health:   'HEALTH-FOCUSED',
+    wellness: 'WELLNESS-FOCUSED',
+  }[state.topSignal];
+
+  if (!g && !ageBand) return null;
+
+  const subject    = g === 'male' ? 'MAN' : g === 'female' ? 'WOMAN' : 'ADULT';
+  const article    = g ? 'A' : 'AN';
+  const possessive = g === 'male' ? 'HIS' : g === 'female' ? 'HER' : 'THEIR';
+
+  if (ageBand) return `${article} ${subject} IN ${possessive} ${ageBand}`;
+  if (bodyAdj) return `A ${bodyAdj} ${subject}`;
+  return `${article} ${subject}`;
 }
 
 // ─── Locality extraction ──────────────────────────────
@@ -560,16 +609,26 @@ function classifyUrl(url, title) {
   let secondCat = null;
   let secondScore = 0;
 
+  // Gender hints are scored but excluded from topSignal selection.
+  const BIO_GENDER_SIGS = new Set(['male', 'female']);
+  let bioGender = null;
+
   for (const [cat, def] of Object.entries(CLASSIFIERS)) {
     // Count keyword hits
     const hits = def.keywords.filter(kw => matchKeyword(text, kw)).length;
     if (hits === 0) continue;
 
-    // Find dominant sub-signal
+    // Find dominant sub-signal (gender hints excluded)
     let topSig = null;
     let topSigCount = 0;
     for (const [sig, sigKws] of Object.entries(def.signals)) {
       const count = sigKws.filter(kw => matchKeyword(text, kw)).length;
+      if (cat === 'bio' && BIO_GENDER_SIGS.has(sig)) {
+        if (count > 0 && (!bioGender || count > bioGender.count)) {
+          bioGender = { value: sig, count };
+        }
+        continue;
+      }
       if (count > topSigCount) { topSigCount = count; topSig = sig; }
     }
 
@@ -588,6 +647,7 @@ function classifyUrl(url, title) {
     secondary: secondCat,
     score: bestScore,
     topSignal: bestSignal,
+    bioGender: bioGender ? bioGender.value : null,
     url,
     title,
     timestamp: Date.now()
@@ -724,6 +784,11 @@ async function updateProfile(url, title) {
     // Make sure geo has SOME signal so computeVocable returns the locality
     // (without this, score may stay at 0 for the searcher case).
     geo.score = Math.min(100, (geo.score || 0) + 1);
+    // Mirror the bump as a dataPoint so the "events" count stays in sync
+    // with the score (otherwise geo shows a locality vocable with 0 events).
+    if (primary !== 'geo') {
+      geo.dataPoints = [{ url, title, timestamp, signal: null, locality }, ...geo.dataPoints].slice(0, 20);
+    }
   }
   cat.dataPoints = [newPoint, ...cat.dataPoints].slice(0, 20);
 
@@ -732,13 +797,22 @@ async function updateProfile(url, title) {
     cat.topSignal = classification.topSignal;
   }
 
+  // Bio gender hint: store on bio category regardless of which category is primary
+  if (classification.bioGender) {
+    profile.categories.bio.genderHint = classification.bioGender;
+  }
+
   profile.newDataFlag = true;
   profile.lastUpdated = timestamp;
 
   // Propagation: spread slightly to adjacent categories
   if (secondary && profile.categories[secondary]) {
-    profile.categories[secondary].score = Math.min(100, profile.categories[secondary].score + 1);
-    profile.categories[secondary].propagation = Math.min(10, profile.categories[secondary].propagation + 0.2);
+    const sec = profile.categories[secondary];
+    sec.score = Math.min(100, sec.score + 1);
+    sec.propagation = Math.min(10, sec.propagation + 0.2);
+    // Mirror the bump as a dataPoint so the "events" count stays in sync
+    // with the score (otherwise secondary cards show a vocable with 0 events).
+    sec.dataPoints = [{ url, title, timestamp, signal: null, propagated: true }, ...sec.dataPoints].slice(0, 20);
   }
 
   await chrome.storage.local.set({ profile });

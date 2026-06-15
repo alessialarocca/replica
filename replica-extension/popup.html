@@ -94,10 +94,10 @@
     }
     .sentence-mono { font-family: 'Aeonik Mono', monospace; font-size: 12px; line-height: 1.65; color: var(--text); text-transform: uppercase; }
     .voc { display: inline; }
-    .voc.unresolved .vb, .voc.unresolved .vi { color: var(--text-mid); }
-    .voc.decontext .vb, .voc.decontext .vi { color: var(--accent-decontext); }
-    .voc.poisoned  .vb, .voc.poisoned  .vi { color: var(--accent-poison); }
-    .voc.amplified .vb, .voc.amplified .vi { color: var(--accent-amplify); }
+    .voc.unresolved .vb, .voc.unresolved .vi { color: var(--text); }
+    .voc.decontext .vb, .voc.decontext .vi { color: var(--text); }
+    .voc.poisoned  .vb, .voc.poisoned  .vi { color: var(--text); }
+    .voc.amplified .vb, .voc.amplified .vi { color: var(--text); }
 
     /* section head */
     .sec {
@@ -131,9 +131,8 @@
       display: inline-flex; align-self: flex-start;
       font-family: 'Aeonik Mono', monospace; font-size: 10px;
       text-transform: uppercase;
-      color: var(--accent-decontext);
-      background: var(--surface);
-      border: 1px solid var(--accent-decontext);
+      color: var(--color-white);
+      background: var(--accent-decontext);
       padding: 1px 8px;
       margin-top: auto;
     }

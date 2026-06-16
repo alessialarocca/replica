@@ -122,16 +122,37 @@ body {
   letter-spacing: -0.01em;
   text-transform: uppercase;
   color: var(--text);
+  /* When a vocable expands on hover, the trailing sentence text must
+     reflow with it instead of overflowing the container. */
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 .cp-sentence > span { display: inline; }
 .cp-sentence .cp-voc {
   cursor: pointer;
   padding: 0 4px;
+  /* Let the expanded [CATEGORY: WORD] break at any point — without this,
+     a long category label has no internal break opportunity and overflows
+     the line at narrow widths. */
+  overflow-wrap: anywhere;
   transition: background .12s, color .12s;
 }
 .cp-sentence .cp-voc:hover {
   background: var(--neutral-950);
   color: var(--color-white);
+}
+.cp-sentence .cp-voc:hover .cp-voc-word::before {
+  content: attr(data-label) ": ";
+}
+/* Decontextualized vocable: text blinks visible/hidden (Arduino DC_BLINK_INTERVAL_MS = 800).
+   Using opacity (not visibility) so the span stays clickable during the
+   off-half of the cycle. */
+@keyframes cp-dc-blink {
+  0%, 50%      { opacity: 1; }
+  50.01%, 100% { opacity: 0; }
+}
+.cp-sentence .cp-voc-dc {
+  animation: cp-dc-blink 1.6s steps(1, end) infinite;
 }
 
 @media (max-width: 640px) {
@@ -152,35 +173,33 @@ body {
   gap: var(--space-md);
   min-width: 0;
 }
-.device-info {
+.device-head {
   display: flex;
-  flex-direction: column;
-  align-self: start;
-  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
 }
-.device-info > .eyebrow {
+.device-head .eyebrow {
   font: var(--type-sys-header);
   text-transform: uppercase;
   color: var(--text);
-  margin-bottom: var(--space-sm);
 }
-.device-illu-wrap {
+.device-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-sm) 0;
-  min-height: 220px;
-  height: 100%;
 }
-@media (max-width: 720px) {
-  .device-illu-wrap { min-height: 160px; }
+.device-icon img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.device-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
 }
-.device-illu-img {
-  position: relative;
-  width: 100%;
-  max-width: 280px;
-}
-.device-illu-img img { display: block; width: 100%; height: auto; }
+.device-card .p-row { flex: 1; }
 
 /* ── MAIN GRID (dashboard) ────────────────── */
 /* Stacked layout at all widths: replica device card full-width on top,
@@ -189,7 +208,7 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
   gap: var(--space-md);
-  align-items: start;
+  align-items: stretch;
 }
 @media (max-width: 960px) {
   .dash-grid { grid-template-columns: 1fr; }
@@ -198,6 +217,7 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  container-type: inline-size;
 }
 
 /* ── CATEGORY ROWS (single-card list) ──────── */
@@ -208,7 +228,7 @@ body {
   border-top: 1px solid var(--border);
   cursor: default;
   display: grid;
-  grid-template-columns: 90px minmax(0, 1.4fr) minmax(0, 1fr) 60px 60px 80px 60px 70px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 150px 60px 60px 80px 60px 70px;
   gap: var(--space-md);
   align-items: center;
 }
@@ -237,6 +257,41 @@ body {
 .cat-col-dc .cat-dc-count {
   margin-top: 0;
   align-self: auto;
+}
+
+/* Progressive column hiding as the card narrows.
+   Container queries respond to .cat-grid's actual width, which jumps when
+   the dash-grid stacks at viewport ≤960px. */
+@container (max-width: 900px) {
+  .cat-card {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 150px 60px 60px 60px;
+  }
+  .cat-col-p, .cat-col-dc { display: none; }
+}
+@container (max-width: 700px) {
+  .cat-card {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 150px 60px 60px;
+  }
+  .cat-col-n { display: none; }
+}
+@container (max-width: 540px) {
+  .cat-card {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 150px;
+    gap: var(--space-sm);
+  }
+  .cat-col-w, .cat-col-a { display: none; }
+}
+@container (max-width: 380px) {
+  .cat-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--space-sm);
+    row-gap: var(--space-xs);
+    align-items: start;
+  }
+  .cat-card .cat-col-name   { grid-column: 1; grid-row: 1; }
+  .cat-card .cat-col-value  { grid-column: 1; grid-row: 2; }
+  .cat-card .cat-col-status { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+  .cat-card.cat-header { display: none; }
 }
 
 .cat-head {
@@ -271,7 +326,7 @@ body {
 .cat-head .cat-eyebrow {
   font: var(--type-h1);
   letter-spacing: -0.03125em;
-  text-transform: none;
+  text-transform: uppercase;
 }
 
 .cat-sum {
@@ -920,9 +975,6 @@ body {
   /* Profile / danger-zone rows wrap on narrow screens */
   .p-row, .dz-row { flex-wrap: wrap; gap: var(--space-xs); }
 
-  /* Device illustration shorter on mobile */
-  .device-illu-wrap { min-height: 160px; }
-
   /* Bar chart fits the viewport on mobile */
   .chart { gap: 3px; padding: 0; }
   .chart .bar { min-width: 0; }
@@ -981,18 +1033,16 @@ body {
 
           <!-- Device card sits next to the categories -->
           <div class="device-card">
-            <div class="device-info">
+            <div class="device-head">
               <div class="eyebrow">REPLICA_ MOD 01</div>
+              <div class="device-icon"><img src="img/device_illustration.png" alt="Device"></div>
+            </div>
+            <div class="device-info">
               <div class="p-row"><span class="p-k">Status</span><span class="p-v" id="mStatus">Synced with device</span></div>
               <div class="p-row"><span class="p-k">Last compilation</span><span class="p-v" id="mLast">—</span></div>
               <div class="p-row"><span class="p-k">Events</span><span class="p-v" id="mPts">—</span></div>
               <div class="p-row"><span class="p-k">Pairing status</span><span class="p-v" id="mDevStatus">—</span></div>
               <div class="p-row"><span class="p-k">Device IP</span><span class="p-v" id="mDevIp">—</span></div>
-            </div>
-            <div class="device-illu-wrap">
-              <div class="device-illu-img">
-                <img src="img/device_illustration.png" alt="Device">
-              </div>
             </div>
           </div>
         </div>

@@ -90,6 +90,38 @@ function rLed(){
   document.getElementById('pillAlert').style.display=hasDC?'inline-block':'none';
 }
 
+/* Mirror Arduino animations on the dashboard sentence:
+   - blink: decontextualized vocables toggle visible/hidden (CSS keyframe)
+   - scramble: when a vocable changes, show random A-Z glyphs for a few
+     frames then settle on the new word (matches replica_firmware.ino) */
+let _prevVoc={};
+let _scrambleTimers={};
+const SCRAMBLE_FRAMES=4;
+const SCRAMBLE_INTERVAL_MS=70;
+function _randomWord(len){
+  let s='';
+  for(let i=0;i<len;i++) s+=String.fromCharCode(65+Math.floor(Math.random()*26));
+  return s;
+}
+function startScramble(span,target,cat){
+  if(_scrambleTimers[cat]){clearInterval(_scrambleTimers[cat]);delete _scrambleTimers[cat];}
+  const word=span.querySelector('.cp-voc-word');
+  if(!word) return;
+  const len=target.length;
+  let frame=0;
+  word.textContent=_randomWord(len);
+  _scrambleTimers[cat]=setInterval(()=>{
+    frame++;
+    if(frame<SCRAMBLE_FRAMES){
+      word.textContent=_randomWord(len);
+    } else {
+      clearInterval(_scrambleTimers[cat]);
+      delete _scrambleTimers[cat];
+      word.textContent=target;
+    }
+  },SCRAMBLE_INTERVAL_MS);
+}
+
 function rSentence(){
   const v=sentence.vocables;
   // Sentence pattern — must mirror background.js `buildSentence()` and popup.js.
@@ -104,17 +136,61 @@ function rSentence(){
   ];
   const el=document.getElementById('currentProfileSent');
   if(!el)return;
+
+  // Detect changed vocables vs the previous render (matches Arduino's
+  // scrambleCat[i] = (newVoc.length()>0 && newVoc != oldVoc)).
+  const changed={};
+  pts.forEach(pt=>{
+    if(pt.p) return;
+    const cur=v[pt.c];
+    const old=_prevVoc[pt.c]||'';
+    if(cur!=null && cur!==old) changed[pt.c]=cur;
+  });
+
+  // The DOM is about to be rebuilt — cancel scramble timers writing into
+  // the old spans so they don't survive across renders.
+  Object.values(_scrambleTimers).forEach(id=>clearInterval(id));
+  _scrambleTimers={};
+
   el.innerHTML='';
   pts.forEach(pt=>{
     if(pt.p){el.appendChild(document.createTextNode(pt.t));return;}
     const voc=v[pt.c],nil=voc==null;
-    el.insertAdjacentHTML('beforeend',`<span class="cp-voc" data-cat="${pt.c}">[${nil?'?':voc}]</span>`);
+    const isDC=!!(profile.categories[pt.c]&&profile.categories[pt.c].isDecontextualized);
+    const cls='cp-voc'+(isDC?' cp-voc-dc':'');
+    const label=CAT_LABELS[pt.c]||pt.c;
+    el.insertAdjacentHTML('beforeend',`<span class="${cls}" data-cat="${pt.c}">[<span class="cp-voc-word" data-label="${label}">${nil?'?':voc}</span>]</span>`);
   });
+
+  Object.keys(changed).forEach(cat=>{
+    const span=el.querySelector(`.cp-voc[data-cat="${cat}"]`);
+    if(span) startScramble(span,changed[cat],cat);
+  });
+
+  pts.forEach(pt=>{ if(!pt.p) _prevVoc[pt.c]=v[pt.c]; });
 }
 
 function titleCase(s){
   if(!s) return s;
   return s.toLowerCase().replace(/(^|[\s.\-/])([a-z])/g,(_,p,c)=>p+c.toUpperCase());
+}
+function lastEventFor(cat){
+  const acts=(profile.actions||[]).filter(a=>a.category===cat);
+  const dps=(profile.categories[cat]&&profile.categories[cat].dataPoints)||[];
+  const dcEvents=dps.filter(dp=>dp.decontextualized).map(dp=>({action:'decontext',timestamp:dp.timestamp}));
+  const all=[...acts,...dcEvents].sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
+  return all[0]||null;
+}
+function statusChipFor(cat,st,nil){
+  if(nil) return '<span class="cat-status inactive">AWAITING</span>';
+  const ev=lastEventFor(cat);
+  if(ev){
+    if(ev.action==='poison')   return '<span class="cat-status poi">POISONED</span>';
+    if(ev.action==='amplify')  return '<span class="cat-status amp">AMPLIFIED</span>';
+    if(ev.action==='decontext')return '<span class="cat-status dc">DECONTEXTUALISED</span>';
+  }
+  if(st && st.weight<0.3) return '<span class="cat-status inactive">UNSTABLE</span>';
+  return '<span class="cat-status">STABLE</span>';
 }
 function rIslands(){
   const grid=document.getElementById('catGrid');
@@ -122,9 +198,9 @@ function rIslands(){
   // Column header row
   grid.insertAdjacentHTML('beforeend',`
     <div class="cat-card cat-header">
-      <div class="cat-col cat-col-status">STATUS</div>
       <div class="cat-col cat-col-name">CATEGORY</div>
       <div class="cat-col cat-col-value">VALUE</div>
+      <div class="cat-col cat-col-status">STATUS</div>
       <div class="cat-col cat-col-w">WEIGHT</div>
       <div class="cat-col cat-col-a">AGE</div>
       <div class="cat-col cat-col-p">PROPAGATION</div>
@@ -135,11 +211,7 @@ function rIslands(){
     const st=profile.categories[cat],voc=sentence.vocables[cat],nil=voc==null;
     const c=document.createElement('div');c.className='cat-card';
     if(nil)c.classList.add('nil');else if(st.isDecontextualized)c.classList.add('dc');
-    let status='<span class="cat-status">STABLE</span>';
-    if(nil)status='<span class="cat-status inactive">AWAITING</span>';
-    else if(st.poisonLevel>0) status='<span class="cat-status poi">POISONED</span>';
-    else if(st.amplifyLevel>0)status='<span class="cat-status amp">AMPLIFIED</span>';
-    else if(st.weight<0.3) status='<span class="cat-status inactive">UNSTABLE</span>';
+    const status=statusChipFor(cat,st,nil);
     const n=st.dataPoints?st.dataPoints.length:0;
     const w=(st.weight||0).toFixed(2);
     const prop=st.propagation>=7?'HIGH':st.propagation>=3?'MID':'LOW';
@@ -152,11 +224,11 @@ function rIslands(){
     }
     c.dataset.cat=cat;
     c.innerHTML=`
-      <div class="cat-col cat-col-status">${status}</div>
       <div class="cat-col cat-col-name">
         <span class="cat-eyebrow">${eyebrow}</span>
       </div>
       <div class="cat-col cat-col-value"><span class="cat-title">${titleText}</span></div>
+      <div class="cat-col cat-col-status">${status}</div>
       <div class="cat-col cat-col-w">${nil?'—':w}</div>
       <div class="cat-col cat-col-a">${age}</div>
       <div class="cat-col cat-col-p">${nil?'—':prop}</div>
@@ -265,11 +337,7 @@ function openDetail(cat){
   const isDC=!!st.isDecontextualized;
 
   // Match the status chip from the closed card
-  let statusHTML='<span class="cat-status">STABLE</span>';
-  if(voc==null) statusHTML='<span class="cat-status inactive">AWAITING</span>';
-  else if(st.poisonLevel>0) statusHTML='<span class="cat-status poi">POISONED</span>';
-  else if(st.amplifyLevel>0) statusHTML='<span class="cat-status amp">AMPLIFIED</span>';
-  else if(st.weight<0.3) statusHTML='<span class="cat-status inactive">UNSTABLE</span>';
+  const statusHTML=statusChipFor(cat,st,voc==null);
 
   let dcBox='';
   const alertsEnabled=!(profile.prefs && profile.prefs.decontextAlerts===false);
@@ -337,9 +405,8 @@ function openDetail(cat){
         <div class="ds-card">
           <div class="cat-head" style="margin-bottom:var(--space-md)">
             ${statusHTML}
-            <span class="cat-eyebrow">${CAT_LABELS[cat]}</span>
           </div>
-          <div class="detail-title">${voc?titleCase(voc):'No data yet'}</div>
+          <div class="detail-title">[${(CAT_LABELS[cat]||'').toUpperCase()}: ${voc?voc.toUpperCase():'?'}]</div>
           <div class="detail-summary">${CAT_SUM[cat]||''}</div>
         </div>
 

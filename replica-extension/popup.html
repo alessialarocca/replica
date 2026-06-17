@@ -77,76 +77,121 @@
     .live-dot.alert { background: var(--accent-decontext); animation: none; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
 
-    /* sentence card */
-    .sentence-block {
-      background: var(--surface);
-      border-radius: var(--radius-sm);
-      padding: var(--space-md);
-      margin-bottom: var(--space-sm);
+    /* current profile hero (no card — webapp cp-hero style) */
+    .cp-hero {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 2px 4px var(--space-sm);
     }
-    .sentence-eyebrow {
+    .cp-eyebrow {
       font-family: 'Aeonik Mono', monospace;
       font-size: 10px;
       text-transform: uppercase;
-      letter-spacing: 0.15em;
-      color: var(--text-mid);
-      margin-bottom: var(--space-xs);
-    }
-    .sentence-mono { font-family: 'Aeonik Mono', monospace; font-size: 12px; line-height: 1.65; color: var(--text); text-transform: uppercase; }
-    .voc { display: inline; }
-    .voc.unresolved .vb, .voc.unresolved .vi { color: var(--text); }
-    .voc.decontext .vb, .voc.decontext .vi { color: var(--text); }
-    .voc.poisoned  .vb, .voc.poisoned  .vi { color: var(--text); }
-    .voc.amplified .vb, .voc.amplified .vi { color: var(--text); }
-
-    /* section head */
-    .sec {
-      padding: var(--space-sm) 4px var(--space-xs);
-      font-family: 'Aeonik Mono', monospace;
-      font-size: 11px;
-      text-transform: uppercase;
+      letter-spacing: 0.18em;
       color: var(--text);
     }
+    .cp-sentence {
+      font-family: 'Aeonik Mono', monospace;
+      font-weight: 500;
+      font-size: 14px;
+      line-height: 1.35;
+      letter-spacing: -0.01em;
+      text-transform: uppercase;
+      color: var(--text);
+      overflow-wrap: break-word;
+      word-break: break-word;
+    }
+    .cp-sentence > span { display: inline; }
+    .cp-sentence .cp-voc {
+      cursor: pointer;
+      padding: 0 3px;
+      overflow-wrap: anywhere;
+      transition: background .12s, color .12s;
+    }
+    .cp-sentence .cp-voc:hover {
+      background: var(--neutral-950);
+      color: var(--color-white);
+    }
+    .cp-sentence .cp-voc:hover .cp-voc-word::before {
+      content: attr(data-label) ": ";
+    }
+    @keyframes cp-dc-blink {
+      0%, 50%      { opacity: 1; }
+      50.01%, 100% { opacity: 0; }
+    }
+    .cp-sentence .cp-voc-dc {
+      animation: cp-dc-blink 1.6s steps(1, end) infinite;
+    }
 
-    /* cat grid */
-    .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-xs); }
-    .island {
+    /* CATEGORIES — single card with row-per-cat (webapp ds-card style) */
+    .ds-card {
       background: var(--surface);
       border-radius: var(--radius-sm);
-      padding: var(--space-sm);
+      padding: var(--space-md);
+    }
+    .cat-eyebrow {
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--text);
+    }
+    .cat-grid {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      margin-top: var(--space-sm);
+    }
+    .cat-card {
+      background: transparent;
+      border-radius: 0;
+      padding: 10px 0;
+      border-top: 1px solid var(--border);
       cursor: pointer;
-      display: flex; flex-direction: column;
-      gap: 6px;
-      min-height: 120px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      column-gap: var(--space-sm);
+      row-gap: var(--space-xs);
+      align-items: start;
       transition: opacity .1s;
     }
-    .island:active { opacity: 0.85; }
-    .island.nil { cursor: default; }
-    .island.nil .isl-lbl { color: var(--text-mid); }
-    .isl-head { display: flex; align-items: flex-start; justify-content: space-between; }
-    .isl-lbl { font-family: 'Aeonik Mono', monospace; font-size: 10px; text-transform: uppercase; color: var(--text); }
-    .isl-val { font-family: 'Aeonik Mono', monospace; font-weight: 500; font-size: 18px; line-height: 1.2; letter-spacing: -0.02em; color: var(--text); }
-    .island.nil .isl-val { font-size: 18px; color: var(--text-mid); }
-    .isl-dc-count {
-      display: inline-flex; align-self: flex-start;
-      font-family: 'Aeonik Mono', monospace; font-size: 10px;
-      text-transform: uppercase;
-      color: var(--color-white);
-      background: var(--accent-decontext);
-      padding: 1px 8px;
-      margin-top: auto;
+    .cat-card:first-child { border-top: none; padding-top: 0; }
+    .cat-card:last-child { padding-bottom: 0; }
+    .cat-card:active { opacity: 0.85; }
+    .cat-card.nil { cursor: default; }
+    .cat-card.nil .cat-title { color: var(--text-mid); }
+    .cat-col { min-width: 0; }
+    .cat-col-name   { grid-column: 1; grid-row: 1; }
+    .cat-col-value  { grid-column: 1; grid-row: 2; }
+    .cat-col-status { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+    .cat-title {
+      font-family: 'Aeonik Mono', monospace;
+      font-weight: 500;
+      font-size: 18px;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      color: var(--text);
     }
-    .isl-badge {
-      display: inline-flex; align-items: center;
-      font-family: 'Aeonik Mono', monospace; font-size: 10px;
+    .cat-status {
+      display: inline-flex;
+      align-items: center;
+      font-family: 'Aeonik Mono', monospace;
+      font-size: 10px;
       text-transform: uppercase;
-      padding: 1px 8px;
-      background: var(--neutral-950); color: var(--neutral-50);
+      padding: 2px 10px;
+      background: var(--neutral-950);
+      color: var(--neutral-50);
     }
-    .isl-badge.poi { background: var(--accent-poison);    color: #fff; }
-    .isl-badge.amp { background: var(--accent-amplify);   color: var(--neutral-950); }
-    .isl-badge.dc  { background: var(--accent-decontext); color: #fff; }
-    .isl-badge.inactive { background: transparent; color: var(--neutral-700); border: 1px solid var(--neutral-700); padding: 0 7px; }
+    .cat-status.dc  { background: var(--accent-decontext); color: #fff; }
+    .cat-status.amp { background: var(--accent-amplify);   color: var(--neutral-950); }
+    .cat-status.poi { background: var(--accent-poison);    color: #fff; }
+    .cat-status.inactive {
+      background: transparent;
+      color: var(--neutral-700);
+      border: 1px solid var(--neutral-700);
+      padding: 1px 9px;
+    }
 
     /* arduino panel */
     .ard-panel {
@@ -213,13 +258,15 @@
 </head>
 <body>
 
-  <div class="sentence-block">
-    <div class="sentence-eyebrow">CURRENT PROFILE</div>
-    <div class="sentence-mono" id="sentenceEl">Loading...</div>
+  <div class="cp-hero">
+    <div class="cp-eyebrow">CURRENT PROFILE</div>
+    <div class="cp-sentence" id="sentenceEl">Loading...</div>
   </div>
 
-  <div class="sec">DATA CATEGORIES</div>
-  <div class="cat-grid" id="catGrid"></div>
+  <div class="ds-card">
+    <div class="cat-eyebrow">CATEGORIES</div>
+    <div class="cat-grid" id="catGrid"></div>
+  </div>
 
   <div class="ard-panel">
     <div class="ard-label">

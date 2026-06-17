@@ -32,7 +32,7 @@ function render(){
 }
 
 function rSentence(){
-  const el=document.getElementById('sentenceEl'),v=sentence.vocables;
+  const el=document.getElementById('sentenceEl'), v=sentence.vocables;
   const pts=[
     {t:'IDENTIFIED AS ',p:1},{c:'bio'},
     {t:', LOCATED IN ',p:1},{c:'geo'},
@@ -45,36 +45,37 @@ function rSentence(){
   el.innerHTML='';
   pts.forEach(pt=>{
     if(pt.p){el.appendChild(document.createTextNode(pt.t));return;}
-    const voc=v[pt.c],nil=voc===null||voc===undefined;
-    const s=document.createElement('span');s.className='voc'+(nil?' unresolved':'');
-    if(!nil){const st=profile.categories[pt.c];
-      if(st.isDecontextualized)s.classList.add('decontext');
-      else if(st.poisonLevel>0) s.classList.add('poisoned');
-      else if(st.amplifyLevel>0)s.classList.add('amplified');
-    }
-    s.innerHTML=`<span class="vb">[</span><span class="vi">${nil?'?':voc}</span><span class="vb">]</span>`;
-    el.appendChild(s);
+    const voc=v[pt.c], nil=voc==null;
+    const isDC=!!(profile.categories[pt.c]&&profile.categories[pt.c].isDecontextualized);
+    const cls='cp-voc'+(isDC?' cp-voc-dc':'');
+    const label=(CAT_LABELS[pt.c]||pt.c).toUpperCase();
+    el.insertAdjacentHTML('beforeend',`<span class="${cls}" data-cat="${pt.c}">[<span class="cp-voc-word" data-label="${label}">${nil?'?':voc}</span>]</span>`);
   });
 }
 
+function titleCase(s){
+  if(!s) return s;
+  return s.toLowerCase().replace(/(^|[\s.\-/])([a-z])/g,(_,p,c)=>p+c.toUpperCase());
+}
+
 function rCats(){
-  const g=document.getElementById('catGrid');g.innerHTML='';
+  const g=document.getElementById('catGrid'); g.innerHTML='';
   CAT_ORDER.forEach(cat=>{
-    const st=profile.categories[cat],voc=sentence.vocables[cat],nil=voc===null||voc===undefined;
-    const c=document.createElement('div');c.className='island';
-    if(nil)c.classList.add('nil');
-    let badge=`<span class="isl-badge">STABLE</span>`;
-    if(nil) badge=`<span class="isl-badge inactive">AWAITING</span>`;
-    else if(st.poisonLevel>0)      badge=`<span class="isl-badge poi">POISONED</span>`;
-    else if(st.amplifyLevel>0)     badge=`<span class="isl-badge amp">AMPLIFIED</span>`;
-    else if(st.weight<0.3) badge=`<span class="isl-badge inactive">UNSTABLE</span>`;
-    let dcCount=0;
-    if(!nil && st.isDecontextualized){
-      dcCount=(st.dataPoints||[]).filter(dp=>dp.decontextualized).length||1;
-    }
-    const dcLine=dcCount>0?`<div class="isl-dc-count">${dcCount} DECONTEXTUALIZED</div>`:'';
-    c.innerHTML=`<div class="isl-head"><span class="isl-lbl">${CAT_LABELS[cat].toUpperCase()}</span>${badge}</div><div class="isl-val">${nil?'—':voc}</div>${dcLine}`;
-    if(!nil)c.addEventListener('click',()=>chrome.tabs.create({url:'https://alessialarocca.github.io/replica/replica-webapp/index.html'}));
+    const st=profile.categories[cat], voc=sentence.vocables[cat], nil=voc==null;
+    const c=document.createElement('div');
+    c.className='cat-card'+(nil?' nil':'');
+    let status=`<span class="cat-status">STABLE</span>`;
+    if(nil)                          status=`<span class="cat-status inactive">AWAITING</span>`;
+    else if(st.isDecontextualized)   status=`<span class="cat-status dc">DECONTEXTUALISED</span>`;
+    else if(st.poisonLevel>0)        status=`<span class="cat-status poi">POISONED</span>`;
+    else if(st.amplifyLevel>0)       status=`<span class="cat-status amp">AMPLIFIED</span>`;
+    else if(st.weight<0.3)           status=`<span class="cat-status inactive">UNSTABLE</span>`;
+    const titleText=nil?'—':titleCase(voc);
+    c.innerHTML=`
+      <div class="cat-col cat-col-name"><span class="cat-eyebrow">${CAT_LABELS[cat].toUpperCase()}</span></div>
+      <div class="cat-col cat-col-value"><span class="cat-title">${titleText}</span></div>
+      <div class="cat-col cat-col-status">${status}</div>`;
+    if(!nil) c.addEventListener('click',()=>chrome.tabs.create({url:'https://alessialarocca.github.io/replica/replica-webapp/index.html'}));
     g.appendChild(c);
   });
 }

@@ -874,6 +874,7 @@ async function sendSentenceToArduino(text) {
 
   let decontext = [];
   const vocables = {};
+  const decontextCounts = {};
   try {
     const pr = await chrome.storage.local.get('profile');
     const profile = pr.profile;
@@ -883,6 +884,14 @@ async function sendSentenceToArduino(text) {
         const v = sentence.vocables[c];
         if (v) vocables[c] = String(v).toUpperCase();
       }
+      // Conteggio per-categoria mostrato nella info line del display.
+      // Sorgente: stessa logica della dashboard (vedi dashboard.js, "cat-dc-count")
+      // — numero di dataPoints con flag `decontextualized=true`, con fallback a 1
+      // quando il flag categoria è attivo ma nessun punto è etichettato.
+      // Indicizziamo direttamente su `decontextFlags` (stessa sorgente del
+      // payload `decontext` qui sotto, così LED arancione e conteggio sono
+      // sempre coerenti anche se `categories[c].isDecontextualized` è
+      // disallineato per profili migrati).
       if (profile.decontextFlags) {
         const dcCats = Object.keys(profile.decontextFlags);
         if (dcCats.length) {
@@ -890,18 +899,25 @@ async function sendSentenceToArduino(text) {
             .map(c => sentence.vocables[c])
             .filter(v => !!v)
             .map(v => String(v).toUpperCase());
+          const cats = profile.categories || {};
+          for (const c of dcCats) {
+            const st = cats[c];
+            const n = ((st && st.dataPoints) || []).filter(dp => dp.decontextualized).length || 1;
+            decontextCounts[c] = n;
+          }
         }
       }
     }
   } catch { /* fallback con array vuoto */ }
 
-  const cacheKey = text + '|' + decontext.join(',') + '|' + JSON.stringify(vocables);
+  const cacheKey = text + '|' + decontext.join(',') + '|' + JSON.stringify(vocables)
+                 + '|' + JSON.stringify(decontextCounts);
   if (cacheKey === lastSentenceSent) return;
   try {
     await fetch(`http://${arduinoIp}/sentence`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, decontext, vocables }),
+      body: JSON.stringify({ text, decontext, vocables, decontextCounts }),
       signal: AbortSignal.timeout(3000)
     });
     lastSentenceSent = cacheKey;

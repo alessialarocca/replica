@@ -89,6 +89,7 @@
 
 #include <WiFi.h>
 #include <WebServer.h>
+#include <ArduinoOTA.h>
 #include <GxEPD2_BW.h>
 // Frase: IBM Plex Mono 6pt (generato con fontconvert, cap-height 7 px,
 // cell 7x8). Taglia intermedia fra built-in (8 px) e FreeMono9pt7b (13 px).
@@ -152,9 +153,14 @@ const int   N_INT        = 3;
 
 // ── LED RGB (3 canali PWM) ───────────────────────────────────
 struct RGB { uint8_t r, g, b; };
-const RGB COL_PURPLE = {  60,  10,  90 };
-const RGB COL_ORANGE = {  90,  25,   0 };
-const RGB COL_GREEN  = {   0,  90,  20 };
+// Compensazione percettiva: il diodo verde è più "efficiente" all'occhio
+// umano dei rossi/blu, quindi a parità di PWM appare più brillante.
+// Alziamo R e B su ORANGE e PURPLE per pareggiare la luminosità percepita
+// di GREEN. (Se l'orange tende troppo al rosso o il purple al blu, regola
+// il rapporto fra i canali — il PWM totale è già nel range "luminoso".)
+const RGB COL_PURPLE = { 140,   0, 255 };  // viola intenso
+const RGB COL_ORANGE = { 220,  55,   0 };  // arancio caldo
+const RGB COL_GREEN  = {   0,  90,  20 };  // riferimento
 const RGB COL_OFF    = {   0,   0,   0 };
 
 // ── Server HTTP ──────────────────────────────────────────────
@@ -236,6 +242,12 @@ String        currentMode     = "neutral";
 // NUOVI eventi (non a ogni rinfresco).
 String        decontextSignature = "";
 int           decontextCount     = 0;
+// Conteggio decontestualizzazioni per categoria — popolato dal POST
+// /sentence (campo "decontextCounts" mandato dall'estensione, stesso
+// valore mostrato dalla dashboard). Una categoria non decontestualizzata
+// resta a 0. Usato dalla info line per scrivere "N EVENT(S) ..." solo
+// in corrispondenza della categoria selezionata.
+int           catDecontextCount[N_CAT] = { 0, 0, 0, 0, 0, 0 };
 
 // Stato animazione LED — 2 lampi arancioni: ON-OFF-ON-OFF (4 step da 250 ms)
 enum LedAnim { LED_NONE, LED_BLINK_ORANGE };
@@ -247,6 +259,23 @@ const unsigned long LED_BLINK_HALF_MS = 250;
 // Ultimo colore LED applicato a regime
 RGB           lastLedColor = { 1, 1, 1 };
 
+// ── Telnet log server (Serial-over-WiFi) ──────────────────────
+// L'Arduino IDE non supporta il Serial Monitor sulla porta network;
+// esponiamo un server TCP su porta 23 e usiamo tlog() per scrivere
+// in parallelo su Serial USB e sul client telnet connesso.
+// Da Terminale: `telnet <ip>` oppure `nc <ip> 23`.
+WiFiServer telnetSrv(23);
+WiFiClient telnetClient;
+void tlog(const char* fmt, ...) {
+  char buf[256];
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(buf, sizeof(buf), fmt, ap);
+  va_end(ap);
+  Serial.print(buf);
+  if (telnetClient && telnetClient.connected()) telnetClient.print(buf);
+}
+
 // ── UI state machine ─────────────────────────────────────────
 //   UI_IDLE          → encoder 1 rota tra categorie, command line vuota
 //   UI_ACTION_SELECT → encoder 2 è in POISON/AMPLIFY: encoder 1 rota tra
@@ -256,7 +285,12 @@ RGB           lastLedColor = { 1, 1, 1 };
 //                      "UNDO Ns" che conta alla rovescia per 5 s.
 //                      Un altro click annulla l'azione, altrimenti la
 //                      command line torna ad ACTION_SELECT / IDLE.
-enum UiState { UI_IDLE, UI_ACTION_SELECT, UI_UNDO };
+//   UI_FORCE_NEUTRAL → l'utente ha commesso un poison/amplify (UNDO
+//                      scaduto): schermata di blocco a tutto display
+//                      finché l'encoder 2 non torna in posizione
+//                      neutrale (mode == 0). Tutti gli input di
+//                      encoder 1 vengono ignorati in questo stato.
+enum UiState { UI_IDLE, UI_ACTION_SELECT, UI_UNDO, UI_FORCE_NEUTRAL };
 volatile UiState uiState   = UI_IDLE;
 volatile int     intensityIdx = 1;   // default = MID
 
@@ -660,6 +694,9 @@ void drawSentence(int catIdx) {
 // invariato non serve ridisegnare (e quindi evitiamo ghosting da
 // partial-refresh inutili sull'e-ink).
 String cmdLineSignature(int mode, int intIdx) {
+  if (uiState == UI_FORCE_NEUTRAL) {
+    return String("FN");
+  }
   if (uiState == UI_UNDO) {
     return String("U");
   }
@@ -668,7 +705,13 @@ String cmdLineSignature(int mode, int intIdx) {
   }
   // UI_IDLE: hint "ENTER ACTION MODE" finché hintExpiresMs è nel futuro
   if (hintExpiresMs > millis()) return "H";
-  return "";
+  // UI_IDLE a regime: la riga mostra la categoria selezionata e (se quella
+  // categoria ha eventi decontestualizzati) il conteggio della SOLA
+  // categoria selezionata. Includiamo entrambi nella signature così il
+  // partial refresh scatta quando uno dei due cambia.
+  int catDc = (renderedCatIdx >= 0 && renderedCatIdx < N_CAT)
+              ? catDecontextCount[renderedCatIdx] : 0;
+  return String("I:") + String(renderedCatIdx) + ":" + String(catDc);
 }
 
 // Disegna SOLO la riga in basso. Usa il built-in 5x7 come tutto il display.
@@ -716,7 +759,29 @@ void drawCommandLine(int mode, int intIdx) {
     }
     return;
   }
-  // UI_IDLE: lascia bianca la riga
+  // UI_IDLE (neutral): a sinistra il nome della categoria selezionata.
+  // Il conteggio "N EVENT(S) DECONTEXTUALISED" appare a destra SOLO se la
+  // categoria attualmente selezionata ha eventi decontestualizzati — la
+  // sorgente del conteggio è la dashboard (campo decontextCounts del POST
+  // /sentence). Se la selezione è scaduta (renderedCatIdx == -1) la riga
+  // resta bianca.
+  if (renderedCatIdx >= 0 && renderedCatIdx < N_CAT) {
+    String catName = String(CAT_KEYS[renderedCatIdx]);
+    catName.toUpperCase();
+    display.setCursor(MARGIN, Y_TEXT);
+    display.print(catName);
+    int catDc = catDecontextCount[renderedCatIdx];
+    if (catDc > 0) {
+      String info = String(catDc)
+                  + (catDc == 1 ? " EVENT DECONTEXTUALISED"
+                                : " EVENTS DECONTEXTUALISED");
+      int infoW = (int)info.length() * CHAR_W;
+      int infoX = SCREEN_W - MARGIN - infoW;
+      if (infoX < MARGIN) infoX = MARGIN;
+      display.setCursor(infoX, Y_TEXT);
+      display.print(info);
+    }
+  }
 }
 
 // Full refresh — chiamato al cambio frase (resetta ghosting)
@@ -770,6 +835,51 @@ void redrawCommandLineOnly(int mode) {
   display.firstPage();
   do { drawCommandLine(mode, intensityIdx); } while (display.nextPage());
   renderedCmdSignature = cmdLineSignature(mode, intensityIdx);
+}
+
+// ── Schermata di blocco "RETURN TO NEUTRAL" ──────────────────
+// Disegnata a tutto display quando l'utente ha appena commesso una
+// azione (poison/amplify) e deve riportare l'encoder 2 a 0 prima di
+// poter interagire di nuovo. Usa il bitmap built-in 5x7 con setTextSize
+// per avere un titolo grande senza dipendere da font extra.
+void drawForceNeutralOverlay() {
+  display.fillRect(0, 0, SCREEN_W, SCREEN_H, GxEPD_WHITE);
+  // cornice nera per dare il senso di "schermo modale"
+  display.drawRect(0, 0, SCREEN_W, SCREEN_H, GxEPD_BLACK);
+  display.drawRect(1, 1, SCREEN_W - 2, SCREEN_H - 2, GxEPD_BLACK);
+  // Stesso font della frase (IBM Plex Mono 6pt, monospace, cap-height 7 px,
+  // cella 7x8): tutte le righe della modale usano questa taglia.
+  display.setFont(&IBMPlexMono_Regular6pt7b);
+  display.setTextSize(1);
+  display.setTextColor(GxEPD_BLACK);
+  display.setTextWrap(false);
+
+  const int CHAR_W = 7;     // xAdvance del font
+  const int LINE_H = 12;    // stesso LINE_H di drawSentence
+  const int ASCENT = 7;     // cap-height sopra la baseline
+
+  const char* lines[] = { "ACTION SET.", "RETURN TO NEUTRAL MODE" };
+  const int N_LINES = 2;
+
+  // Centratura verticale del blocco di N_LINES righe.
+  int blockH = (N_LINES - 1) * LINE_H + ASCENT;
+  int firstBaseline = (SCREEN_H - blockH) / 2 + ASCENT;
+
+  for (int i = 0; i < N_LINES; i++) {
+    int w = (int)strlen(lines[i]) * CHAR_W;
+    int x = (SCREEN_W - w) / 2;
+    if (x < 0) x = 0;
+    display.setCursor(x, firstBaseline + i * LINE_H);
+    display.print(lines[i]);
+  }
+}
+
+void redrawForceNeutralFull() {
+  display.setRotation(3);
+  display.setFullWindow();
+  display.firstPage();
+  do { drawForceNeutralOverlay(); } while (display.nextPage());
+  renderedCmdSignature = cmdLineSignature(-99, 0);   // forza la sig a "FN"
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -862,14 +972,33 @@ void handleSentencePost() {
       decontextCount++;
     }
   }
-  bool changedAndNonEmpty = (newSig != decontextSignature) && (decontextCount > 0);
+  // Mappa per-categoria col conteggio mandato dalla dashboard. Categorie
+  // mancanti dal JSON si azzerano (la dashboard non manda le "pulite").
+  // Usiamo l'operatore | per leggere l'int con default 0 — più robusto di
+  // is<int>(), che in ArduinoJson v6 ha edge case su numeri JSON piccoli.
+  JsonVariantConst dcCountVar = doc["decontextCounts"];
+  Serial.print("dcCounts ->");
+  for (int i = 0; i < N_CAT; i++) {
+    int n = dcCountVar[CAT_KEYS[i]] | 0;
+    if (n < 0) n = 0;
+    catDecontextCount[i] = n;
+    Serial.print(' '); Serial.print(CAT_KEYS[i]); Serial.print('=');
+    Serial.print(n);
+  }
+  Serial.println();
+  // Aggiorniamo la signature per coerenza con altre parti del firmware,
+  // ma NON la usiamo più per gatekeepare il blink: lampeggiamo ogni
+  // volta che arriva un POST con almeno una parola decontestualizzata,
+  // anche se la categoria era già decontestualizzata (l'evento è comunque
+  // un nuovo "decontext event" loggato dall'estensione).
   decontextSignature = newSig;
+  bool hasDecontext = (decontextCount > 0);
 
   server.send(200, "application/json", "{\"ok\":true}");
   // Blink arancione SINCRONO prima del redraw, così il LED reagisce
   // subito anche con encoder 2 in POISON/AMPLIFY — durante i 2 s di
   // full refresh la loop() resta bloccata e tickLedAnim non gira.
-  if (changedAndNonEmpty) {
+  if (hasDecontext) {
     for (int i = 0; i < 2; i++) {
       writeLED(COL_ORANGE);
       delay(250);
@@ -880,6 +1009,10 @@ void handleSentencePost() {
   }
   // Scramble pre-refresh sulle previsioni cambiate (se ce ne sono).
   // Il flag scrambleCat[] è già stato popolato dal diff sopra.
+  // In UI_FORCE_NEUTRAL i dati arrivati restano in memoria ma NON
+  // ridisegniamo: la schermata di blocco deve restare visibile finché
+  // l'utente non riporta l'encoder 2 a neutrale.
+  if (uiState == UI_FORCE_NEUTRAL) return;
   int catForHighlight = renderedCatIdx >= 0 ? renderedCatIdx : 0;
   if (anyScramble) {
     runScrambleAnimation(catForHighlight);
@@ -1151,6 +1284,37 @@ void setup() {
   server.begin();
   Serial.println("HTTP server running on port 80");
 
+  // ── OTA: upload sketch via WiFi from the Arduino IDE ──────
+  // Once this runs, the board appears under Tools → Port as a
+  // "Network Port" named "replica-mod-01 at <ip>". Select it and
+  // hit Upload to flash over WiFi instead of USB.
+  ArduinoOTA.setHostname("replica-mod-01");
+  // Uncomment to require a password on every upload:
+  // ArduinoOTA.setPassword("replica");
+  ArduinoOTA.onStart([]() {
+    tlog("[OTA] start\n");
+    drawBootScreen("OTA UPLOAD", "in progress...");
+  });
+  ArduinoOTA.onEnd([]() {
+    tlog("\n[OTA] end — rebooting\n");
+  });
+  ArduinoOTA.onProgress([](unsigned int p, unsigned int t) {
+    tlog("[OTA] %u%%\r", (p / (t / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t e) {
+    tlog("[OTA] error[%u]\n", e);
+  });
+  ArduinoOTA.begin();
+  tlog("[OTA] ready  host=replica-mod-01.local  ip=%s\n",
+       WiFi.localIP().toString().c_str());
+
+  // Telnet log server: connetti da Terminale con `telnet <ip>`
+  // o `nc <ip> 23` per vedere i log via WiFi.
+  telnetSrv.begin();
+  telnetSrv.setNoDelay(true);
+  tlog("[TELNET] log server on port 23 — `telnet %s` to view logs\n",
+       WiFi.localIP().toString().c_str());
+
   currentCategory = CAT_KEYS[0];
   currentMode     = modeStr(0);
   renderedCatIdx  = 0;
@@ -1180,7 +1344,17 @@ void setup() {
 // ─────────────────────────────────────────────────────────────
 void loop() {
   wifiHousekeep();
+  ArduinoOTA.handle();
   server.handleClient();
+
+  // Telnet log: accetta UN client alla volta. Se ne arriva uno nuovo,
+  // chiude il precedente (così un riavvio del client telnet riprende
+  // a vedere log senza dover riavviare il device).
+  if (telnetSrv.hasClient()) {
+    if (telnetClient && telnetClient.connected()) telnetClient.stop();
+    telnetClient = telnetSrv.accept();
+    telnetClient.println("[TELNET] connected — live logs follow");
+  }
 
   // ── Encoder 1: consuma detent emessi dall'ISR e fai dispatch ───
   // sul giusto target a seconda della UI state. Dopo dispatch resetta
@@ -1202,7 +1376,12 @@ void loop() {
     }
     // UI_UNDO ignora la rotazione (decisione binaria) ma il movimento
     // conta comunque per il timeout della selezione.
-    lastEnc1MoveMs = millis();
+    // UI_FORCE_NEUTRAL: ignoriamo completamente — niente cambio di
+    // selezione e niente reset del timeout, così la schermata di
+    // blocco non viene mai "scrollata via".
+    if (uiState != UI_FORCE_NEUTRAL) {
+      lastEnc1MoveMs = millis();
+    }
   }
 
   int catIdx = enc1Pos;
@@ -1236,7 +1415,18 @@ void loop() {
 
     // Cambio di modo → cambio di UI state (se non siamo in undo).
     if (uiState != UI_UNDO) {
-      uiState = (mode == 0) ? UI_IDLE : UI_ACTION_SELECT;
+      if (uiState == UI_FORCE_NEUTRAL) {
+        // Sblocco SOLO quando l'utente riporta davvero l'encoder a 0.
+        // Se passa fra poison ↔ amplify, lo schermo di blocco resta.
+        if (mode == 0) {
+          uiState = UI_IDLE;
+          renderedCatIdx = -1;  // partiamo con la categoria nascosta
+          Serial.println("Force-neutral: released — UI unlocked");
+          redrawAllFull(-1, 0);
+        }
+      } else {
+        uiState = (mode == 0) ? UI_IDLE : UI_ACTION_SELECT;
+      }
     }
     if (ledAnim == LED_NONE) applySteadyLED(mode);
   }
@@ -1258,7 +1448,11 @@ void loop() {
     }
     // Cambio selezione utente → partial refresh secco, niente animazione.
     // (Lo scramble è riservato ai cambi di previsione del sistema.)
-    redrawAllPartial(displayedCatIdx, mode);
+    // In UI_FORCE_NEUTRAL non ridisegniamo: la rotazione di enc1 non
+    // deve sovrascrivere la schermata di blocco.
+    if (uiState != UI_FORCE_NEUTRAL) {
+      redrawAllPartial(displayedCatIdx, mode);
+    }
   }
 
   // ── Encoder 1 click: significato dipende dallo stato ─────────
@@ -1292,14 +1486,27 @@ void loop() {
       // all'utente di muovere encoder 2 in POISON o AMPLIFY.
       hintExpiresMs = millis() + HINT_WINDOW_MS;
       Serial.println("Hint: enter action mode");
+    } else if (uiState == UI_FORCE_NEUTRAL) {
+      // Tutti i click sono ignorati finché l'utente non riporta
+      // l'encoder 2 a neutrale.
+      Serial.println("Click ignored: return encoder 2 to neutral first");
     }
   }
 
   // ── Scadenza finestra UNDO ───────────────────────────────────
   if (uiState == UI_UNDO && millis() >= undoExpiresMs) {
-    uiState       = (mode == 0) ? UI_IDLE : UI_ACTION_SELECT;
     undoExpiresMs = 0;
-    Serial.println("Undo window expired");
+    if (mode != 0) {
+      // L'utente ha committato un'azione e l'encoder 2 è ancora in
+      // poison/amplify: forziamo il ritorno a neutrale con una
+      // schermata di blocco a tutto display.
+      uiState = UI_FORCE_NEUTRAL;
+      Serial.println("Undo window expired -> FORCE_NEUTRAL");
+      redrawForceNeutralFull();
+    } else {
+      uiState = UI_IDLE;
+      Serial.println("Undo window expired");
+    }
   }
 
   // Debug print quando l'intensità cambia in action select.
@@ -1320,7 +1527,9 @@ void loop() {
   // dcBlinkState e facciamo un partial refresh dell'area frase.
   // Lo stop arriva da solo quando il prossimo POST /sentence
   // azzera decontextCount (dopo poison/amplify).
-  if (decontextCount > 0) {
+  // In UI_FORCE_NEUTRAL non disegnamo niente: la schermata di blocco
+  // copre l'area frase.
+  if (decontextCount > 0 && uiState != UI_FORCE_NEUTRAL) {
     if (millis() >= dcBlinkNextMs) {
       dcBlinkState = !dcBlinkState;
       dcBlinkNextMs = millis() + DC_BLINK_INTERVAL_MS;

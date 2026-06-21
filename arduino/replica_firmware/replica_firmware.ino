@@ -109,8 +109,8 @@
 // Nano ESP32 supporta solo 2.4 GHz. Se l'hotspot del telefono pubblica
 // su 5 GHz (di default su molti iPhone) la connessione NON parte.
 // Controllare: hotspot iPhone → "Maximize Compatibility" = ON.
-const char* WIFI_SSID     = "alessia";
-const char* WIFI_PASSWORD = "passhot1";
+const char* WIFI_SSID     = "TIMDAISY";
+const char* WIFI_PASSWORD = "Kobe2019!";
 
 // Quanto spesso ricontrolliamo lo stato WiFi nel loop principale.
 // Se il link cade, riproviamo automaticamente con un ciclo non bloccante.
@@ -159,7 +159,10 @@ struct RGB { uint8_t r, g, b; };
 // di GREEN. (Se l'orange tende troppo al rosso o il purple al blu, regola
 // il rapporto fra i canali — il PWM totale è già nel range "luminoso".)
 const RGB COL_PURPLE = { 140,   0, 255 };  // viola intenso
-const RGB COL_ORANGE = { 220,  55,   0 };  // arancio caldo
+// Verde è molto più "efficiente" del rosso sull'LED: con G=55 il blink
+// di decontestualizzazione viene letto come verde. Abbassiamo G quasi a 0
+// per ottenere un arancione che NON sconfini nel giallo/verde.
+const RGB COL_ORANGE = { 255,  20,   0 };  // arancio caldo (rosso dominante)
 const RGB COL_GREEN  = {   0,  90,  20 };  // riferimento
 const RGB COL_OFF    = {   0,   0,   0 };
 
@@ -168,6 +171,16 @@ WebServer server(80);
 
 // ── Categorie (devono combaciare con CAT_ORDER nel webapp) ───
 const char* CAT_KEYS[]   = { "bio",  "geo",  "prof",  "econ", "socio", "psycho" };
+// Nome esteso mostrato nella info line — combacia con CAT_LABELS lato
+// estensione (popup.js). Sono già in maiuscolo per il print() del bitmap.
+const char* CAT_FULL_NAMES[] = {
+  "BIO-DEMOGRAPHIC",
+  "GEOGRAPHIC",
+  "PROFESSIONAL",
+  "ECONOMIC",
+  "SOCIO-CULTURAL",
+  "PSYCHO-BEHAVIOURAL"
+};
 const int   N_CAT        = 6;
 
 // Posizione di ciascuna categoria nella frase costruita dall'estensione:
@@ -201,14 +214,15 @@ volatile int  enc2Pos = 0;
 // L'ISR scrive direttamente qui. HARD-STOP a entrambi gli estremi:
 // ruotare oltre pos 0 o oltre pos 10 NON ha effetto (niente wrap).
 //
-// Mappa posizione → modo:
-//   pos  0..3  → idle    ( 0)   ← pos 0 = boot default (idle, start)
-//   pos  4..6  → amplify (+1)   ← centro
-//   pos  7..10 → poison  (-1)   ← fondo corsa
+// Mappa posizione → modo (NEUTRAL al centro):
+//   pos  0..3  → amplify (+1)   ← fondo corsa CCW
+//   pos  4..6  → neutral ( 0)   ← centro, boot default
+//   pos  7..10 → poison  (-1)   ← fondo corsa CW
 const int ENC2_POS_MAX        = 10;  // posizione massima inclusiva
-const int ENC2_AMPLIFY_START  = 4;   // pos < 4  → idle
-const int ENC2_POISON_START   = 7;   // pos < 7  → amplify, altrimenti poison
-volatile int enc2EncPos = 0;
+const int ENC2_NEUTRAL_START  = 4;   // pos < 4  → amplify
+const int ENC2_POISON_START   = 7;   // pos < 7  → neutral, altrimenti poison
+const int ENC2_BOOT_POS       = 5;   // partenza al centro (neutral)
+volatile int enc2EncPos = ENC2_BOOT_POS;
 
 // ── Decoder a quadratura per encoder 2 ──────────────────────
 // Tabella delle transizioni di stato: indicizzata da (prevState<<2)|currState
@@ -292,7 +306,14 @@ void tlog(const char* fmt, ...) {
 //                      encoder 1 vengono ignorati in questo stato.
 enum UiState { UI_IDLE, UI_ACTION_SELECT, UI_UNDO, UI_FORCE_NEUTRAL };
 volatile UiState uiState   = UI_IDLE;
-volatile int     intensityIdx = 1;   // default = MID
+volatile int     intensityIdx = 0;   // default = LOW
+
+// True finché l'estensione non ha ancora mandato il primo POST /sentence.
+// In questa fase il display mostra SOLO "AWAITING CONNECTION..." centrato,
+// senza linea separatrice, senza categoria selezionata, senza command line.
+// Tutti i path di redraw ridirigono a drawAwaitingScreen() finché il flag
+// resta true. Diventa false in handleSentencePost al primo POST.
+bool awaitingFirstSentence = true;
 
 // Ultima azione applicata (per /action → undo lato estensione)
 String        lastActionType     = "";   // "poison" | "amplify"
@@ -304,9 +325,22 @@ String        pendingAction      = "";   // "" = nessuna azione pendente
 String        pendingCategory    = "";
 int           pendingIntensity   = 0;
 
-// Timer countdown undo (millis)
-unsigned long undoExpiresMs      = 0;
-const unsigned long UNDO_WINDOW_MS = 5000;
+// Deferred-commit UI_UNDO: il click di commit NON manda subito l'azione
+// all'estensione. Memorizziamo i dettagli in deferred* e mostriamo per
+// HOLD_TO_CANCEL_MS una finestra in cui l'utente può tenere premuto il
+// bottone per cancellare. Se scade senza cancel, l'azione viene davvero
+// inviata (pendingAction). Se l'utente la annulla tramite hold, il
+// deferred viene scartato — l'estensione non vede mai l'azione e la
+// dashboard non la registra. Niente più /action="undo".
+String        deferredAction      = "";
+String        deferredCategory    = "";
+int           deferredIntensity   = 0;
+unsigned long commitDeadlineMs    = 0;   // 0 = nessun commit deferred in corso
+unsigned long actionMsgUntilMs    = 0;   // 0 = nessun messaggio in corso
+String        actionMsgText       = "";  // "ACTION CANCELED" o "ACTION SENT"
+const unsigned long HOLD_TO_CANCEL_MS = 5000;   // durata finestra cancel
+const unsigned long ACTION_MSG_MS     = 1500;
+const int           CANCEL_BAR_SEGMENTS = 5;    // un segmento per secondo
 
 // Stato del command line attualmente disegnato — per evitare
 // partial-refresh inutili.
@@ -393,13 +427,13 @@ void IRAM_ATTR enc2ISR() {
   }
 }
 
-// Mappa posizione assoluta 0..10 → modo logico:
-//   pos  0..3 → idle    ( 0)   ← boot default (start)
-//   pos  4..6 → amplify (+1)   ← centro
-//   pos 7..10 → poison  (-1)   ← fondo corsa
+// Mappa posizione assoluta 0..10 → modo logico (neutral al centro):
+//   pos  0..3 → amplify (+1)   ← fondo corsa CCW
+//   pos  4..6 → neutral ( 0)   ← centro, boot default
+//   pos 7..10 → poison  (-1)   ← fondo corsa CW
 int modeFromPos(int pos) {
-  if (pos < ENC2_AMPLIFY_START) return  0;   // idle
-  if (pos < ENC2_POISON_START)  return  1;   // amplify
+  if (pos < ENC2_NEUTRAL_START) return  1;   // amplify
+  if (pos < ENC2_POISON_START)  return  0;   // neutral
   return                              -1;    // poison
 }
 
@@ -447,6 +481,10 @@ void writeLED(RGB c) {
   writeChannel(LED_R, c.r);
   writeChannel(LED_G, c.g);
   writeChannel(LED_B, c.b);
+  // Tieni traccia di ogni write diretta così applySteadyLED non finisce a
+  // "no-op" credendo che lo stato a regime sia ancora valido dopo una
+  // scrittura manuale (es. blink di decontestualizzazione).
+  lastLedColor = c;
 }
 
 // Colore LED a regime: solo modo (no decontext qui — il decontext
@@ -694,11 +732,23 @@ void drawSentence(int catIdx) {
 // invariato non serve ridisegnare (e quindi evitiamo ghosting da
 // partial-refresh inutili sull'e-ink).
 String cmdLineSignature(int mode, int intIdx) {
+  if (awaitingFirstSentence) return String("AWAIT");
   if (uiState == UI_FORCE_NEUTRAL) {
     return String("FN");
   }
   if (uiState == UI_UNDO) {
-    return String("U");
+    // 2 sotto-stati: messaggio finale (ACTION CANCELED/SENT) oppure
+    // istruzione + barra che si riempie 1 segmento al secondo per la
+    // durata della finestra di commit deferred. Signature distinta per
+    // ogni segmento riempito così la command line si ridisegna 5 volte
+    // durante la finestra, non a ogni iter del loop.
+    if (actionMsgUntilMs > millis()) return String("U:M:") + actionMsgText;
+    int elapsed = (commitDeadlineMs > millis())
+      ? (int)((HOLD_TO_CANCEL_MS - (commitDeadlineMs - millis())) / 1000)
+      : (int)(HOLD_TO_CANCEL_MS / 1000);
+    if (elapsed < 0) elapsed = 0;
+    if (elapsed > CANCEL_BAR_SEGMENTS) elapsed = CANCEL_BAR_SEGMENTS;
+    return String("U:B:") + String(elapsed);
   }
   if (uiState == UI_ACTION_SELECT) {
     return String(mode > 0 ? "A:" : "P:") + String(intIdx);
@@ -714,23 +764,59 @@ String cmdLineSignature(int mode, int intIdx) {
   return String("I:") + String(renderedCatIdx) + ":" + String(catDc);
 }
 
-// Disegna SOLO la riga in basso. Usa il built-in 5x7 come tutto il display.
+// Disegna SOLO la riga in basso. Stesso stile della frase: IBMPlexMono 6pt
+// monospace (cella 7x8, cap-height 7). Y_TEXT è la BASELINE del font
+// custom (setCursor su GFX fonts pone la baseline).
 void drawCommandLine(int mode, int intIdx) {
-  const int Y_TOP    = SENT_H + 2;         // 104
-  const int Y_TEXT   = Y_TOP + 5;           // top-left bitmap, text spans 109..117
-  const int CHAR_W   = 6;                   // bitmap built-in cell
+  const int Y_TOP    = SENT_H + 2;          // 104
+  const int ASCENT   = 7;                   // cap-height IBMPlex 6pt
+  const int Y_TEXT   = Y_TOP + 3 + ASCENT;  // 114: baseline (text spans 107..114)
+  const int CHAR_W   = 7;                   // IBMPlex 6pt xAdvance
   const int MARGIN   = 6;
 
   display.fillRect(0, SENT_H, SCREEN_W, SCREEN_H - SENT_H, GxEPD_WHITE);
   display.drawFastHLine(0, SENT_H, SCREEN_W, GxEPD_BLACK);
-  display.setFont(NULL);                    // bitmap built-in 5x7
-  display.setTextSize(1);
-  display.setTextColor(GxEPD_BLACK, GxEPD_WHITE);
+  display.setFont(&IBMPlexMono_Regular6pt7b);
+  display.setTextColor(GxEPD_BLACK);
   display.setTextWrap(false);
 
   if (uiState == UI_UNDO) {
+    // Layout finestra commit deferred:
+    //   [HOLD 5 SEC TO CANCEL]  [█][█][░][░][░]
+    // Testo a sinistra + barra a destra sulla stessa riga. La barra è
+    // un countdown sul commit deferred: si riempie 1 segmento al secondo
+    // per HOLD_TO_CANCEL_MS; alla fine o l'azione viene mandata (ACTION
+    // SENT) oppure annullata (ACTION CANCELED) in base a se l'utente
+    // sta tenendo il bottone premuto.
+    if (actionMsgUntilMs > millis()) {
+      display.setCursor(MARGIN, Y_TEXT);
+      display.print(actionMsgText);
+      return;
+    }
+    const char* prompt = "CLICK TO REVOKE";
     display.setCursor(MARGIN, Y_TEXT);
-    display.print("UNDO 5 SEC  (CLICK TO REVERT)");
+    display.print(prompt);
+
+    // Testo più corto (15 char vs 21 di prima) → segmenti più larghi:
+    // bar prominente e leggibile da lontano.
+    const int BAR_SEG_W   = 22;
+    const int BAR_SEG_GAP = 2;
+    const int BAR_SEG_H   = 10;
+    const int BAR_Y       = Y_TEXT - ASCENT;
+    int barX = MARGIN + (int)strlen(prompt) * CHAR_W + CHAR_W;  // gap di 1 char
+    int elapsed = (commitDeadlineMs > millis())
+      ? (int)((HOLD_TO_CANCEL_MS - (commitDeadlineMs - millis())) / 1000)
+      : (int)(HOLD_TO_CANCEL_MS / 1000);
+    if (elapsed < 0) elapsed = 0;
+    if (elapsed > CANCEL_BAR_SEGMENTS) elapsed = CANCEL_BAR_SEGMENTS;
+    for (int i = 0; i < CANCEL_BAR_SEGMENTS; i++) {
+      int sx = barX + i * (BAR_SEG_W + BAR_SEG_GAP);
+      if (i < elapsed) {
+        display.fillRect(sx, BAR_Y, BAR_SEG_W, BAR_SEG_H, GxEPD_BLACK);
+      } else {
+        display.drawRect(sx, BAR_Y, BAR_SEG_W, BAR_SEG_H, GxEPD_BLACK);
+      }
+    }
     return;
   }
 
@@ -744,19 +830,33 @@ void drawCommandLine(int mode, int intIdx) {
     const char* head = (mode > 0) ? "AMPLIFY" : "POISON";
     display.setCursor(MARGIN, Y_TEXT);
     display.print(head);
-    display.print("  ");
-    // Tre opzioni con sottolineatura sulla selezionata
-    int x = MARGIN + (int)(strlen(head) + 2) * CHAR_W;
+
+    // Barra di intensità a 3 segmenti: i primi (intIdx+1) sono pieni, gli
+    // altri solo contornati. La label corrente (LOW/MID/HIGH) sta a destra
+    // della barra. Larghezza totale entro 250 px anche col font IBMPlex
+    // (CHAR_W=7) e head="AMPLIFY" (7 char) + label="HIGH" (4 char).
+    const int BAR_SEG_W = 18;
+    const int BAR_SEG_H = 8;
+    const int BAR_SEG_GAP = 2;
+    const int BAR_Y = Y_TEXT - ASCENT;      // 107: allineato col TOP del testo
+    const int GAP_AFTER_HEAD = 2 * CHAR_W;  // 2 char spazio tra head e barra
+    const int GAP_BEFORE_LABEL = CHAR_W;    // 1 char spazio tra barra e label
+
+    int barX = MARGIN + (int)strlen(head) * CHAR_W + GAP_AFTER_HEAD;
+    int fillCount = intIdx + 1;             // 1..3 segmenti pieni
     for (int i = 0; i < N_INT; i++) {
-      const char* w = INT_LABELS[i];
-      display.setCursor(x, Y_TEXT);
-      display.print(w);
-      int wlen = (int)strlen(w) * CHAR_W;
-      if (i == intIdx) {
-        display.drawFastHLine(x, Y_TEXT + 9, wlen, GxEPD_BLACK);
+      int sx = barX + i * (BAR_SEG_W + BAR_SEG_GAP);
+      if (i < fillCount) {
+        display.fillRect(sx, BAR_Y, BAR_SEG_W, BAR_SEG_H, GxEPD_BLACK);
+      } else {
+        display.drawRect(sx, BAR_Y, BAR_SEG_W, BAR_SEG_H, GxEPD_BLACK);
       }
-      x += wlen + CHAR_W;   // spazio fra le opzioni
     }
+
+    int barEndX = barX + N_INT * (BAR_SEG_W + BAR_SEG_GAP) - BAR_SEG_GAP;
+    int labelX  = barEndX + GAP_BEFORE_LABEL;
+    display.setCursor(labelX, Y_TEXT);
+    display.print(INT_LABELS[intIdx]);
     return;
   }
   // UI_IDLE (neutral): a sinistra il nome della categoria selezionata.
@@ -766,26 +866,70 @@ void drawCommandLine(int mode, int intIdx) {
   // /sentence). Se la selezione è scaduta (renderedCatIdx == -1) la riga
   // resta bianca.
   if (renderedCatIdx >= 0 && renderedCatIdx < N_CAT) {
-    String catName = String(CAT_KEYS[renderedCatIdx]);
-    catName.toUpperCase();
+    const char* catName = CAT_FULL_NAMES[renderedCatIdx];
     display.setCursor(MARGIN, Y_TEXT);
     display.print(catName);
     int catDc = catDecontextCount[renderedCatIdx];
     if (catDc > 0) {
-      String info = String(catDc)
-                  + (catDc == 1 ? " EVENT DECONTEXTUALISED"
-                                : " EVENTS DECONTEXTUALISED");
+      // "N DECONTEXT." sta accanto a qualsiasi nome categoria, incluso
+      // PSYCHO-BEHAVIOURAL (18 char × 7 = 126 px + 8 char × 7 = 56 px
+      // + margini = 194 px). Niente più fallback al solo numero.
+      String info = String(catDc) + " DECONTEXT.";
+      int leftEnd = MARGIN + (int)strlen(catName) * CHAR_W;
       int infoW = (int)info.length() * CHAR_W;
       int infoX = SCREEN_W - MARGIN - infoW;
-      if (infoX < MARGIN) infoX = MARGIN;
+      if (infoX < leftEnd + CHAR_W) infoX = leftEnd + CHAR_W;
       display.setCursor(infoX, Y_TEXT);
       display.print(info);
     }
   }
 }
 
+// ── Schermata "AWAITING CONNECTION..." ──────────────────────
+// Disegnata finché awaitingFirstSentence == true (boot completato ma
+// nessun POST /sentence ricevuto). Layout top-left che combina REPLICA_,
+// stato WiFi (CONNECTED + IP) e il messaggio "AWAITING CONNECTION..."
+// in un'unica vista. Stesso font della frase principale (IBMPlexMono
+// 6pt) — setCursor pone la baseline, non il top-left.
+void drawAwaitingScreen() {
+  display.fillScreen(GxEPD_WHITE);
+  display.setFont(&IBMPlexMono_Regular6pt7b);
+  display.setTextColor(GxEPD_BLACK);
+  display.setTextWrap(false);
+
+  const int X = 6;
+  const int ASCENT = 7;
+
+  // Baseline = top + ASCENT. Mantengo le stesse Y "top" di drawBootScreen
+  // (6, 36, 50) e aggiungo l'awaiting più sotto.
+  display.setCursor(X, 6 + ASCENT);          // 13
+  display.print("REPLICA_");
+
+  if (WiFi.status() == WL_CONNECTED) {
+    display.setCursor(X, 36 + ASCENT);       // 43
+    display.print("CONNECTED");
+    display.setCursor(X, 50 + ASCENT);       // 57
+    display.print(WiFi.localIP().toString());
+  } else {
+    display.setCursor(X, 36 + ASCENT);
+    display.print("WIFI DOWN");
+  }
+
+  display.setCursor(X, 80 + ASCENT);         // 87
+  display.print("AWAITING DASHBOARD CONNECTION...");
+}
+
+void redrawAwaitingFull() {
+  display.setRotation(3);
+  display.setFullWindow();
+  display.firstPage();
+  do { drawAwaitingScreen(); } while (display.nextPage());
+  renderedCmdSignature = "AWAIT";
+}
+
 // Full refresh — chiamato al cambio frase (resetta ghosting)
 void redrawAllFull(int catIdx, int mode) {
+  if (awaitingFirstSentence) { redrawAwaitingFull(); return; }
   display.setRotation(3);
   display.setFullWindow();
   display.firstPage();
@@ -799,6 +943,7 @@ void redrawAllFull(int catIdx, int mode) {
 // Partial refresh dell'area frase + command line — usato quando
 // l'encoder 1 ruota la categoria (in UI_IDLE).
 void redrawAllPartial(int catIdx, int mode) {
+  if (awaitingFirstSentence) return;   // schermo awaiting: nessuna UI da rinfrescare
   display.setRotation(3);
   display.setPartialWindow(0, 0, SCREEN_W, SCREEN_H);
   display.firstPage();
@@ -830,6 +975,7 @@ void runScrambleAnimation(int catIdxForHighlight) {
 // Partial refresh della sola command line — usato durante
 // UI_ACTION_SELECT (cambio intensità) e UI_UNDO (countdown).
 void redrawCommandLineOnly(int mode) {
+  if (awaitingFirstSentence) return;   // niente command line in awaiting
   display.setRotation(3);
   display.setPartialWindow(0, SENT_H, SCREEN_W, SCREEN_H - SENT_H);
   display.firstPage();
@@ -844,9 +990,6 @@ void redrawCommandLineOnly(int mode) {
 // per avere un titolo grande senza dipendere da font extra.
 void drawForceNeutralOverlay() {
   display.fillRect(0, 0, SCREEN_W, SCREEN_H, GxEPD_WHITE);
-  // cornice nera per dare il senso di "schermo modale"
-  display.drawRect(0, 0, SCREEN_W, SCREEN_H, GxEPD_BLACK);
-  display.drawRect(1, 1, SCREEN_W - 2, SCREEN_H - 2, GxEPD_BLACK);
   // Stesso font della frase (IBM Plex Mono 6pt, monospace, cap-height 7 px,
   // cella 7x8): tutte le righe della modale usano questa taglia.
   display.setFont(&IBMPlexMono_Regular6pt7b);
@@ -854,22 +997,18 @@ void drawForceNeutralOverlay() {
   display.setTextColor(GxEPD_BLACK);
   display.setTextWrap(false);
 
-  const int CHAR_W = 7;     // xAdvance del font
-  const int LINE_H = 12;    // stesso LINE_H di drawSentence
-  const int ASCENT = 7;     // cap-height sopra la baseline
+  const int LINE_H = 12;
+  const int ASCENT = 7;
 
   const char* lines[] = { "ACTION SET.", "RETURN TO NEUTRAL MODE" };
   const int N_LINES = 2;
 
-  // Centratura verticale del blocco di N_LINES righe.
-  int blockH = (N_LINES - 1) * LINE_H + ASCENT;
-  int firstBaseline = (SCREEN_H - blockH) / 2 + ASCENT;
-
+  // Layout top-left, X e Y baseline coerenti con drawSentence (MARGIN=6,
+  // baseline prima riga = MARGIN + ASCENT).
+  const int X = 6;
+  const int Y0 = 6 + ASCENT;       // 13: baseline della prima riga
   for (int i = 0; i < N_LINES; i++) {
-    int w = (int)strlen(lines[i]) * CHAR_W;
-    int x = (SCREEN_W - w) / 2;
-    if (x < 0) x = 0;
-    display.setCursor(x, firstBaseline + i * LINE_H);
+    display.setCursor(X, Y0 + i * LINE_H);
     display.print(lines[i]);
   }
 }
@@ -995,10 +1134,12 @@ void handleSentencePost() {
   bool hasDecontext = (decontextCount > 0);
 
   server.send(200, "application/json", "{\"ok\":true}");
-  // Blink arancione SINCRONO prima del redraw, così il LED reagisce
-  // subito anche con encoder 2 in POISON/AMPLIFY — durante i 2 s di
-  // full refresh la loop() resta bloccata e tickLedAnim non gira.
-  if (hasDecontext) {
+  // Blink arancione SINCRONO prima del redraw — SOLO se siamo in neutral.
+  // In poison/amplify il LED dell'azione (viola/verde) deve restare ACCESO
+  // FISSO per tutta la durata del modo azione, finché l'utente non torna
+  // in neutral. Niente lampeggi di altri eventi che interrompono il
+  // segnale "sei attualmente in modo azione".
+  if (hasDecontext && renderedMode == 0) {
     for (int i = 0; i < 2; i++) {
       writeLED(COL_ORANGE);
       delay(250);
@@ -1013,6 +1154,10 @@ void handleSentencePost() {
   // ridisegniamo: la schermata di blocco deve restare visibile finché
   // l'utente non riporta l'encoder 2 a neutrale.
   if (uiState == UI_FORCE_NEUTRAL) return;
+  // Prima frase ricevuta → esci dallo schermo "AWAITING CONNECTION...".
+  // Lo facciamo PRIMA del redraw così redrawAllFull non finisce a
+  // ridisegnare lo schermo di awaiting.
+  awaitingFirstSentence = false;
   int catForHighlight = renderedCatIdx >= 0 ? renderedCatIdx : 0;
   if (anyScramble) {
     runScrambleAnimation(catForHighlight);
@@ -1049,20 +1194,27 @@ void handleActionGet() {
 // Boot screen
 // ─────────────────────────────────────────────────────────────
 void drawBootScreen(const char* line1, const char* line2) {
+  // IBMPlexMono 6pt non ha glifi minuscoli: senza toUpperCase i call
+  // site con "Connecting...", "retrying...", "in progress..." renderebbero
+  // come small-caps/glifi mancanti. Forziamo upper qui per uniformità.
+  String l1 = String(line1); l1.toUpperCase();
+  String l2 = String(line2); l2.toUpperCase();
+
   display.setRotation(3);
   display.setFullWindow();
   display.firstPage();
   do {
     display.fillScreen(GxEPD_WHITE);
-    display.setTextColor(GxEPD_BLACK, GxEPD_WHITE);
-    display.setFont(NULL);             // bitmap built-in 5x7
-    display.setTextSize(1);
-    display.setCursor(6, 6);
+    display.setTextColor(GxEPD_BLACK);
+    display.setFont(&IBMPlexMono_Regular6pt7b);   // stesso font della frase
+    display.setTextWrap(false);
+    const int ASCENT = 7;                          // cap-height IBMPlex 6pt
+    display.setCursor(6, 6 + ASCENT);              // 13: baseline REPLICA_
     display.print("REPLICA_");
-    display.setCursor(6, 36);
-    display.print(line1);
-    display.setCursor(6, 50);
-    display.print(line2);
+    display.setCursor(6, 36 + ASCENT);             // 43: baseline line1
+    display.print(l1);
+    display.setCursor(6, 50 + ASCENT);             // 57: baseline line2
+    display.print(l2);
   } while (display.nextPage());
 }
 
@@ -1203,10 +1355,17 @@ void wifiHousekeep() {
   if (!s_wifiUp && nowUp) {
     s_wifiUp = true;
     Serial.printf("[WiFi] link UP  ip=%s\n", WiFi.localIP().toString().c_str());
-    drawBootScreen("CONNECTED", WiFi.localIP().toString().c_str());
-    // dà un attimo all'utente per leggere l'IP, poi torna alla UI
-    delay(1500);
-    redrawAllFull(renderedCatIdx, renderedMode);
+    if (awaitingFirstSentence) {
+      // drawAwaitingScreen mostra già REPLICA_ + CONNECTED + IP +
+      // AWAITING in un'unica vista — niente schermata intermedia.
+      redrawAwaitingFull();
+    } else {
+      // Post-awaiting: l'utente è già in UI principale, mostra l'IP
+      // brevemente come conferma di riconnessione, poi torna alla UI.
+      drawBootScreen("CONNECTED", WiFi.localIP().toString().c_str());
+      delay(1500);
+      redrawAllFull(renderedCatIdx, renderedMode);
+    }
   }
 
   if (nowUp) return;
@@ -1237,10 +1396,32 @@ void setup() {
   // dopo WiFi + e-ink, così durante l'inizializzazione (lenta e rumorosa)
   // nessun sub-step può accumularsi e la posizione resta garantita a 0.
 
+  // LED esterno: forziamo OFF il prima possibile.
+  // - digitalWrite(LOW) PRIMA di analogWrite ci dà uno 0 V certo sui pin
+  //   anche se il LEDC PWM non è ancora attivato.
+  // - lastLedColor viene riallineato a COL_OFF così applySteadyLED(0) più
+  //   tardi non confonderà uno scrivere "stato uguale" con un noop.
   pinMode(LED_R, OUTPUT);
   pinMode(LED_G, OUTPUT);
   pinMode(LED_B, OUTPUT);
+  digitalWrite(LED_R, LED_COMMON_ANODE ? HIGH : LOW);
+  digitalWrite(LED_G, LED_COMMON_ANODE ? HIGH : LOW);
+  digitalWrite(LED_B, LED_COMMON_ANODE ? HIGH : LOW);
   writeLED(COL_OFF);
+  lastLedColor = COL_OFF;
+
+  // Nano ESP32 ha un RGB LED on-board (LED_RED/GREEN/BLUE, common-anode:
+  // HIGH = spento). Se non lo spegniamo esplicitamente, all'avvio resta
+  // verde finché il bootloader non rilascia i pin.
+#ifdef LED_RED
+  pinMode(LED_RED,   OUTPUT); digitalWrite(LED_RED,   HIGH);
+#endif
+#ifdef LED_GREEN
+  pinMode(LED_GREEN, OUTPUT); digitalWrite(LED_GREEN, HIGH);
+#endif
+#ifdef LED_BLUE
+  pinMode(LED_BLUE,  OUTPUT); digitalWrite(LED_BLUE,  HIGH);
+#endif
 
   display.init(115200);
   display.setRotation(3);
@@ -1265,11 +1446,11 @@ void setup() {
 
   // Primo tentativo di bring-up. Se fallisce non blocchiamo per sempre:
   // il loop principale continuerà a riprovare via wifiHousekeep().
+  // Su SUCCESS non disegniamo uno schermo intermedio "CONNECTED + IP":
+  // redrawAwaitingFull() più sotto mostra REPLICA_ + CONNECTED + IP +
+  // AWAITING in un'unica vista top-left aligned.
   s_wifiUp = wifiBringUp(WIFI_BRINGUP_TIMEOUT_MS);
-  if (s_wifiUp) {
-    drawBootScreen("CONNECTED", WiFi.localIP().toString().c_str());
-    delay(3000);
-  } else {
+  if (!s_wifiUp) {
     drawBootScreen("WIFI FAILED", "retrying...");
     delay(3000);
   }
@@ -1319,24 +1500,28 @@ void setup() {
   currentMode     = modeStr(0);
   renderedCatIdx  = 0;
   renderedMode    = 0;
-  redrawAllFull(0, 0);
+  // Boot: nessuna frase ancora ricevuta dall'estensione → schermata
+  // "AWAITING CONNECTION..." pulita, senza categoria/command line.
+  redrawAwaitingFull();
   applySteadyLED(0);
 
   // Boot = "appena mosso", così la selezione categoria è visibile per i
   // primi ENC1_SELECTION_TIMEOUT_MS millisecondi.
   lastEnc1MoveMs = millis();
 
-  // Encoder 2: ora che boot/WiFi/e-ink sono finiti, azzera lo stato e
-  // attacca finalmente gli interrupt. Da qui in poi pos=0 → idle, e
-  // il primo conteggio osservato in seriale sarà inequivocabilmente 0.
-  enc2EncPos    = 0;
+  // Encoder 2: ora che boot/WiFi/e-ink sono finiti, riporta la posizione
+  // al centro (ENC2_BOOT_POS = neutral) e attacca finalmente gli interrupt.
+  // Da qui in poi: CCW dal centro → amplify, CW dal centro → poison.
+  enc2EncPos    = ENC2_BOOT_POS;
   enc2SubStep   = 0;
   enc2PrevState = (digitalRead(ENC2_CLK) << 1) | digitalRead(ENC2_DT);
   attachInterrupt(digitalPinToInterrupt(ENC2_CLK), enc2ISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(ENC2_DT),  enc2ISR, CHANGE);
-  Serial.print("Enc2  -> pos=0/");
+  Serial.print("Enc2  -> pos=");
+  Serial.print(ENC2_BOOT_POS);
+  Serial.print("/");
   Serial.print(ENC2_POS_MAX);
-  Serial.println("  mode=idle (boot)");
+  Serial.println("  mode=neutral (boot, center)");
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1393,9 +1578,9 @@ void loop() {
   int mode   = modeFromPos(encPos);
   enc2Pos    = mode;   // sincronizza per eventuali lettori esterni
 
-  // Inizializzato a 0 (lo stato di boot già stampato in setup),
-  // così la prima iterazione del loop non duplica la riga "pos=0".
-  static int lastLoggedEncPos = 0;
+  // Inizializzato a ENC2_BOOT_POS (lo stato di boot già stampato in setup),
+  // così la prima iterazione del loop non duplica la riga di boot.
+  static int lastLoggedEncPos = ENC2_BOOT_POS;
   if (encPos != lastLoggedEncPos) {
     lastLoggedEncPos = encPos;
     Serial.print("Enc2  -> pos=");
@@ -1413,20 +1598,36 @@ void loop() {
     Serial.print("Mode  -> ");
     Serial.println(currentMode);
 
-    // Cambio di modo → cambio di UI state (se non siamo in undo).
-    if (uiState != UI_UNDO) {
-      if (uiState == UI_FORCE_NEUTRAL) {
-        // Sblocco SOLO quando l'utente riporta davvero l'encoder a 0.
-        // Se passa fra poison ↔ amplify, lo schermo di blocco resta.
-        if (mode == 0) {
-          uiState = UI_IDLE;
-          renderedCatIdx = -1;  // partiamo con la categoria nascosta
-          Serial.println("Force-neutral: released — UI unlocked");
-          redrawAllFull(-1, 0);
-        }
-      } else {
-        uiState = (mode == 0) ? UI_IDLE : UI_ACTION_SELECT;
+    // Cambio di modo → cambio di UI state.
+    if (uiState == UI_FORCE_NEUTRAL) {
+      // Sblocco SOLO quando l'utente riporta davvero l'encoder a 0.
+      // Se passa fra poison ↔ amplify, lo schermo di blocco resta.
+      if (mode == 0) {
+        uiState = UI_IDLE;
+        renderedCatIdx = -1;  // partiamo con la categoria nascosta
+        Serial.println("Force-neutral: released — UI unlocked");
+        redrawAllFull(-1, 0);
       }
+    } else if (uiState == UI_UNDO) {
+      // In UI_UNDO il ritorno a neutral significa "accetto l'azione":
+      // facciamo fire IMMEDIATO del commit deferred (così non si perde)
+      // e usciamo a UI_IDLE. Swap poison↔amplify senza passare per
+      // neutral: rimane UI_UNDO, deferred continua.
+      if (mode == 0) {
+        if (commitDeadlineMs > 0 && deferredAction.length() > 0) {
+          pendingAction    = deferredAction;
+          pendingCategory  = deferredCategory;
+          pendingIntensity = deferredIntensity;
+          Serial.print("Returned to neutral -> commit fired -> ");
+          Serial.println(pendingAction);
+          deferredAction = ""; deferredCategory = ""; deferredIntensity = 0;
+          commitDeadlineMs = 0;
+        }
+        uiState = UI_IDLE;
+        Serial.println("UNDO: returned to neutral, exiting");
+      }
+    } else {
+      uiState = (mode == 0) ? UI_IDLE : UI_ACTION_SELECT;
     }
     if (ledAnim == LED_NONE) applySteadyLED(mode);
   }
@@ -1434,8 +1635,14 @@ void loop() {
   // ── Encoder 1: selezione visibile entro ENC1_SELECTION_TIMEOUT_MS ──
   // dall'ultimo movimento. Oltre, la categoria evidenziata sparisce
   // (displayedCatIdx = -1 → drawSentence non disegna nessun riquadro).
+  // ECCEZIONE: in UI_ACTION_SELECT e UI_UNDO la categoria DEVE restare
+  // visibile per tutta la durata dell'azione — l'utente deve sempre
+  // vedere quale categoria sta poison/amplify-ando. Il timeout vale
+  // quindi solo in UI_IDLE.
   bool selectionVisible =
-       (millis() - lastEnc1MoveMs) < ENC1_SELECTION_TIMEOUT_MS;
+       (millis() - lastEnc1MoveMs) < ENC1_SELECTION_TIMEOUT_MS
+       || uiState == UI_ACTION_SELECT
+       || uiState == UI_UNDO;
   int displayedCatIdx = selectionVisible ? catIdx : -1;
   if (displayedCatIdx != renderedCatIdx) {
     renderedCatIdx = displayedCatIdx;
@@ -1459,28 +1666,35 @@ void loop() {
   if (actionFresh) {
     actionFresh = false;
     if (uiState == UI_ACTION_SELECT) {
-      // Commit azione → coda /action, transizione a UI_UNDO
-      pendingAction     = currentMode;       // "poison" o "amplify"
-      pendingCategory   = currentCategory;
-      pendingIntensity  = intensityIdx + 1;  // 1..3
-      lastActionType        = pendingAction;
-      lastActionCategory    = pendingCategory;
-      lastActionIntensity   = pendingIntensity;
-      uiState         = UI_UNDO;
-      undoExpiresMs   = millis() + UNDO_WINDOW_MS;
-      Serial.print("Action commit -> ");
-      Serial.print(pendingAction); Serial.print(' ');
-      Serial.print(pendingCategory); Serial.print(' ');
-      Serial.println(pendingIntensity);
+      // Commit DEFERRED: memorizziamo l'azione e apriamo la finestra di
+      // HOLD_TO_CANCEL_MS. pendingAction viene impostato SOLO se la
+      // finestra scade senza che l'utente tenga premuto il bottone per
+      // tutto il tempo. Se l'utente annulla, l'estensione non vede mai
+      // l'azione e la dashboard non la registra.
+      deferredAction      = currentMode;       // "poison" o "amplify"
+      deferredCategory    = currentCategory;
+      deferredIntensity   = intensityIdx + 1;  // 1..3
+      lastActionType      = deferredAction;
+      lastActionCategory  = deferredCategory;
+      lastActionIntensity = deferredIntensity;
+      commitDeadlineMs    = millis() + HOLD_TO_CANCEL_MS;
+      uiState             = UI_UNDO;
+      Serial.print("Action deferred -> ");
+      Serial.print(deferredAction); Serial.print(' ');
+      Serial.print(deferredCategory); Serial.print(' ');
+      Serial.println(deferredIntensity);
     } else if (uiState == UI_UNDO) {
-      // Annulla l'azione → coda /action con type "undo"
-      pendingAction    = "undo";
-      pendingCategory  = lastActionCategory;
-      pendingIntensity = 0;
-      uiState          = (mode == 0) ? UI_IDLE : UI_ACTION_SELECT;
-      undoExpiresMs    = 0;
-      Serial.print("Action undo  -> ");
-      Serial.println(pendingCategory);
+      // Click singolo durante la finestra deferred: scarta l'azione.
+      // L'estensione non vede mai pendingAction="poison/amplify",
+      // quindi la dashboard non registra niente.
+      if (actionMsgUntilMs == 0 && commitDeadlineMs > 0) {
+        Serial.print("Action canceled (click) -> ");
+        Serial.println(deferredCategory);
+        deferredAction = ""; deferredCategory = ""; deferredIntensity = 0;
+        commitDeadlineMs = 0;
+        actionMsgText    = "ACTION REVOKED";
+        actionMsgUntilMs = millis() + ACTION_MSG_MS;
+      }
     } else if (uiState == UI_IDLE) {
       // Niente da committare in neutral. Mostra l'hint per ricordare
       // all'utente di muovere encoder 2 in POISON o AMPLIFY.
@@ -1493,20 +1707,41 @@ void loop() {
     }
   }
 
-  // ── Scadenza finestra UNDO ───────────────────────────────────
-  if (uiState == UI_UNDO && millis() >= undoExpiresMs) {
-    undoExpiresMs = 0;
-    if (mode != 0) {
-      // L'utente ha committato un'azione e l'encoder 2 è ancora in
-      // poison/amplify: forziamo il ritorno a neutrale con una
-      // schermata di blocco a tutto display.
-      uiState = UI_FORCE_NEUTRAL;
-      Serial.println("Undo window expired -> FORCE_NEUTRAL");
-      redrawForceNeutralFull();
-    } else {
+  // ── Deferred commit countdown in UI_UNDO ────────────────────
+  // L'annullamento avviene su click singolo (gestito dal click handler
+  // sopra). Qui controlliamo solo la scadenza del timer: se nessuno ha
+  // cliccato per cancellare entro HOLD_TO_CANCEL_MS, l'azione deferred
+  // viene davvero mandata all'estensione.
+  // Niente messaggio "ACTION SENT" intermedio: andiamo SUBITO alla
+  // schermata FORCE_NEUTRAL (che già contiene "ACTION SET." in alto),
+  // così il modal non arriva con un secondo di ritardo.
+  if (uiState == UI_UNDO && actionMsgUntilMs == 0
+      && commitDeadlineMs > 0 && millis() >= commitDeadlineMs) {
+    pendingAction      = deferredAction;
+    pendingCategory    = deferredCategory;
+    pendingIntensity   = deferredIntensity;
+    Serial.print("Deferred commit fired -> ");
+    Serial.print(pendingAction); Serial.print(' ');
+    Serial.print(pendingCategory); Serial.print(' ');
+    Serial.println(pendingIntensity);
+    deferredAction = ""; deferredCategory = ""; deferredIntensity = 0;
+    commitDeadlineMs = 0;
+    if (mode == 0) {
       uiState = UI_IDLE;
-      Serial.println("Undo window expired");
+    } else {
+      uiState = UI_FORCE_NEUTRAL;
+      redrawForceNeutralFull();
     }
+  }
+
+  // Fine messaggio ACTION CANCELED → uscita da UI_UNDO. (ACTION SENT
+  // non esiste più: il commit transita immediatamente al modal.)
+  if (uiState == UI_UNDO && actionMsgUntilMs > 0
+      && millis() >= actionMsgUntilMs) {
+    actionMsgUntilMs = 0;
+    actionMsgText    = "";
+    uiState = (mode == 0) ? UI_IDLE : UI_ACTION_SELECT;
+    Serial.println("Cancel message done");
   }
 
   // Debug print quando l'intensità cambia in action select.

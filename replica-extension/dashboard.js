@@ -27,7 +27,14 @@ let sentence = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   loadData();
-  setInterval(loadData, 15000);
+  // Polling di sicurezza: ogni 3s aggiorniamo comunque. Sotto, l'event
+  // push da background (PROFILE_CHANGED) ci sveglia istantaneamente
+  // quando il profile cambia (es. dopo un'azione Arduino) — il polling
+  // copre solo lo scenario in cui il push non arriva.
+  setInterval(loadData, 3000);
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg && msg.__replica_push === 'PROFILE_CHANGED') loadData();
+  });
   document.getElementById('headerDate').textContent = new Date().toLocaleDateString('en-US', {
     weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
   }).toUpperCase();

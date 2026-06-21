@@ -1243,9 +1243,17 @@ chrome.runtime.onMessage.addListener(handleMessage);
 // External (webapp on localhost via externally_connectable)
 chrome.runtime.onMessageExternal.addListener(handleMessage);
 
-// Push a "PROFILE_CHANGED" hint to every tab whenever stored profile changes.
-// Tabs without our content script silently fail (lastError is swallowed).
+// Push a "PROFILE_CHANGED" hint:
+//  - chrome.runtime.sendMessage → raggiunge popup/dashboard (pagine
+//    estensione), che NON ricevono chrome.tabs.sendMessage.
+//  - chrome.tabs.sendMessage → raggiunge i content script di tab regolari.
+// lastError viene swallowed quando non c'è recipient (normale).
 function broadcastProfileChange() {
+  try {
+    chrome.runtime.sendMessage({ __replica_push: 'PROFILE_CHANGED' }, () => {
+      void chrome.runtime.lastError;
+    });
+  } catch (e) { /* nessun listener attivo: fine */ }
   chrome.tabs.query({}, (tabs) => {
     for (const t of tabs) {
       chrome.tabs.sendMessage(t.id, { __replica_push: 'PROFILE_CHANGED' }, () => {

@@ -110,7 +110,9 @@
     .main {
       max-width: 1440px;
       margin: 0 auto;
-      padding: 0 var(--space-2xl) var(--space-2xl);
+      /* padding-top matches the topnav's top padding (--space-xl) so the
+         space below the tabs equals the space above them. */
+      padding: var(--space-xl) var(--space-2xl) var(--space-2xl);
     }
 
     .sentence-block {

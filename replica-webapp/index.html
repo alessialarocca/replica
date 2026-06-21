@@ -46,7 +46,9 @@ body {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  padding: var(--space-md) var(--space-2xl) var(--space-lg);
+  /* Bottom padding matches .app's padding-top (--space-xl) so the gap
+     under the tabs equals the gap above the topnav itself. */
+  padding: var(--space-md) var(--space-2xl) var(--space-xl);
 }
 .topnav-logo {
   justify-self: start;

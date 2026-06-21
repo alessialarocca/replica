@@ -202,18 +202,53 @@ const CLASSIFIERS = {
 //   econ   → "VALUED AS ___"       (noun phrase: a/an + economic subject)
 //   psycho → "EXHIBITING ___"      (noun phrase: adjective + behaviour/noun)
 
+// Each bySignal entry is now an object {normal, poisoned, amplified}.
+// - normal[]: 3 tier-based variants (tier 0 = score 1-10, 1 = 11-30, 2 = 31+)
+// - poisoned[]: 3 intensity-based variants (intensity 1=LOW, 2=MID, 3=HIGH)
+// - amplified[]: 3 intensity-based variants (intensity 1=LOW, 2=MID, 3=HIGH)
+// The category-level poisoned/amplified/fallback arrays below each `bySignal`
+// are kept as final fallback when a signal entry is missing the needed key
+// or no topSignal is detected.
 const VOCABLE_MAP = {
 
   bio: {
     // completes: "IDENTIFIED AS ___"
     bySignal: {
-      gen_z:      ['A YOUNG ADULT',             'A GEN-Z USER',              'A DIGITAL NATIVE'],
-      millennial: ['A LATE MILLENNIAL',         'AN ESTABLISHED ADULT',      'A WORKING-AGE ADULT'],
-      parent:     ['A PARENT',                  'A FAMILY ADULT',            'A CAREGIVER'],
-      mature:     ['A MATURE ADULT',            'A SENIOR ADULT',            'AN OLDER ADULT'],
-      fitness:    ['A FITNESS ENTHUSIAST',      'A TRACKED ATHLETE',         'A FIT ADULT'],
-      health:     ['A HEALTH SEEKER',           'A MEDICAL PATIENT',         'A HEALTHCARE USER'],
-      wellness:   ['A WELLNESS SEEKER',         'A STRESSED ADULT',          'A SELF-OPTIMISER'],
+      gen_z: {
+        normal:    ['A YOUNG ADULT',            'A GEN-Z USER',              'A DIGITAL NATIVE'],
+        poisoned:  ['AN UNCLEAR YOUNG ADULT',   'A SCRAMBLED GEN-Z USER',    'A DIGITAL NATIVE VOID'],
+        amplified: ['A VERIFIED YOUNG ADULT',   'A PEAK GEN-Z PROFILE',      'A CONFIRMED DIGITAL NATIVE'],
+      },
+      millennial: {
+        normal:    ['A LATE MILLENNIAL',        'AN ESTABLISHED ADULT',      'A WORKING-AGE ADULT'],
+        poisoned:  ['AN UNCLEAR MILLENNIAL',    'A SCRAMBLED MILLENNIAL',    'A WORKING-AGE VOID'],
+        amplified: ['A VERIFIED MILLENNIAL',    'AN OPTIMISED MILLENNIAL',   'A CONFIRMED PROFESSIONAL ADULT'],
+      },
+      parent: {
+        normal:    ['A PARENT',                 'A FAMILY ADULT',            'A CAREGIVER'],
+        poisoned:  ['AN UNCLEAR PARENT',        'A FRAGMENTED FAMILY ADULT', 'A CAREGIVER VOID'],
+        amplified: ['A VERIFIED PARENT',        'AN OPTIMISED FAMILY ADULT', 'A PEAK CAREGIVER'],
+      },
+      mature: {
+        normal:    ['A MATURE ADULT',           'A SENIOR ADULT',            'AN OLDER ADULT'],
+        poisoned:  ['AN UNCLEAR MATURE ADULT',  'A SCRAMBLED SENIOR',        'A SENIOR PROFILE VOID'],
+        amplified: ['A VERIFIED MATURE ADULT',  'AN OPTIMISED SENIOR',       'A CONFIRMED ELDER'],
+      },
+      fitness: {
+        normal:    ['A FITNESS ENTHUSIAST',     'A TRACKED ATHLETE',         'A FIT ADULT'],
+        poisoned:  ['AN UNCLEAR ATHLETE',       'A SCRAMBLED FITNESS PROFILE','AN ATHLETIC VOID'],
+        amplified: ['A VERIFIED ATHLETE',       'A PEAK-FIT ENTHUSIAST',     'A CONFIRMED FIT ADULT'],
+      },
+      health: {
+        normal:    ['A HEALTH SEEKER',          'A MEDICAL PATIENT',         'A HEALTHCARE USER'],
+        poisoned:  ['AN UNCLEAR PATIENT',       'A FRAGMENTED MEDICAL PROFILE','A HEALTH DATA VOID'],
+        amplified: ['A VERIFIED PATIENT',       'AN OPTIMISED MEDICAL USER', 'A CONFIRMED HEALTH SEEKER'],
+      },
+      wellness: {
+        normal:    ['A WELLNESS SEEKER',        'A STRESSED ADULT',          'A SELF-OPTIMISER'],
+        poisoned:  ['AN UNCLEAR SEEKER',        'A SCRAMBLED SELF-PROFILE',  'A WELLNESS VOID'],
+        amplified: ['A VERIFIED WELLNESS USER', 'AN OPTIMISED SELF-TRACKER', 'A PEAK SELF-OPTIMISER'],
+      },
     },
     fallback:   ['A TRACKED PERSON',            'A MONITORED ADULT',         'A LOGGED USER'],
     poisoned:   ['AN UNCLEAR PERSON',           'A SCRAMBLED IDENTITY',      'AN UNRESOLVED PERSON',    'A SIGNAL VOID'],
@@ -223,71 +258,171 @@ const VOCABLE_MAP = {
   geo: {
     // completes: "LOCATED IN ___"
     bySignal: {
-      urban:      ['A CITY',                     'A METROPOLITAN AREA',       'A DENSE URBAN AREA'],
-      traveller:  ['A TRAVEL ROUTE',             'A MOBILITY CORRIDOR',       'A MULTI-CITY ROUTE'],
-      local:      ['A HOME NEIGHBOURHOOD',       'A TRACKED LOCALITY',        'A LOCAL AREA'],
-      commuter:   ['A COMMUTER CORRIDOR',        'A DAILY TRANSIT ROUTE',     'A COMMUTER ROUTE'],
-      weather:    ['A MONITORED AREA',           'A WEATHER-TRACKED AREA',    'A COORDINATE-ANCHORED AREA'],
+      urban: {
+        normal:    ['A CITY',                   'A METROPOLITAN AREA',       'A DENSE URBAN AREA'],
+        poisoned:  ['AN UNCLEAR CITY',          'A SCRAMBLED METRO AREA',    'AN URBAN VOID'],
+        amplified: ['A VERIFIED CITY',          'A CONFIRMED METRO AREA',    'A PEAK URBAN CENTRE'],
+      },
+      traveller: {
+        normal:    ['A TRAVEL ROUTE',           'A MOBILITY CORRIDOR',       'A MULTI-CITY ROUTE'],
+        poisoned:  ['AN UNKNOWN ROUTE',         'A FRAGMENTED CORRIDOR',     'A ROUTE VOID'],
+        amplified: ['A VERIFIED ROUTE',         'AN OPTIMISED CORRIDOR',     'A CONFIRMED MULTI-CITY ROUTE'],
+      },
+      local: {
+        normal:    ['A HOME NEIGHBOURHOOD',     'A TRACKED LOCALITY',        'A LOCAL AREA'],
+        poisoned:  ['AN UNCLEAR NEIGHBOURHOOD', 'A SCRAMBLED LOCALITY',      'A LOCAL VOID'],
+        amplified: ['A VERIFIED NEIGHBOURHOOD', 'AN OPTIMISED LOCALITY',     'A CONFIRMED HOME AREA'],
+      },
+      commuter: {
+        normal:    ['A COMMUTER CORRIDOR',      'A DAILY TRANSIT ROUTE',     'A COMMUTER ROUTE'],
+        poisoned:  ['AN UNCLEAR COMMUTE',       'A SCRAMBLED TRANSIT ROUTE', 'A COMMUTE VOID'],
+        amplified: ['A VERIFIED COMMUTE',       'AN OPTIMISED TRANSIT ROUTE','A CONFIRMED DAILY CORRIDOR'],
+      },
+      weather: {
+        normal:    ['A MONITORED AREA',         'A WEATHER-TRACKED AREA',    'A COORDINATE-ANCHORED AREA'],
+        poisoned:  ['AN UNCLEAR AREA',          'A WEATHER SIGNAL VOID',     'A COORDINATE VOID'],
+        amplified: ['A VERIFIED AREA',          'A WEATHER-CONFIRMED AREA',  'A COORDINATE-LOCKED AREA'],
+      },
     },
-    fallback:   ['A TRACKED LOCATION',           'AN ACTIVE LOCATION',        'A LOGGED PLACE'],
-    poisoned:   ['AN UNKNOWN PLACE',             'A NOISY LOCATION',          'A SPATIAL VOID',          'A LOST LOCATION'],
-    amplified:  ['A VERIFIED PLACE',             'A CONFIRMED LOCATION',      'A LOCATION-OPTIMISED AREA','A GEO-CONFIRMED PLACE'],
+    fallback:   ['A TRACKED LOCATION',          'AN ACTIVE LOCATION',        'A LOGGED PLACE'],
+    poisoned:   ['AN UNKNOWN PLACE',            'A NOISY LOCATION',          'A SPATIAL VOID',          'A LOST LOCATION'],
+    amplified:  ['A VERIFIED PLACE',            'A CONFIRMED LOCATION',      'A LOCATION-OPTIMISED AREA','A GEO-CONFIRMED PLACE'],
   },
 
   prof: {
     // completes: "WORKING AS ___"
     bySignal: {
-      creative:   ['A CREATIVE PROFESSIONAL',    'A DESIGNER',                'A CREATIVE WORKER'],
-      developer:  ['A SOFTWARE ENGINEER',        'A PROGRAMMER',              'A SOFTWARE DEVELOPER'],
-      manager:    ['A MANAGER',                  'A TEAM LEAD',               'A BUSINESS MANAGER'],
-      academic:   ['A KNOWLEDGE WORKER',         'A RESEARCHER',              'AN ACADEMIC'],
-      jobseeker:  ['A JOB SEEKER',               'A CANDIDATE',               'AN APPLICANT'],
+      creative: {
+        normal:    ['A CREATIVE PROFESSIONAL',  'A DESIGNER',                'A CREATIVE WORKER'],
+        poisoned:  ['AN UNCLEAR CREATIVE',      'A FRAGMENTED DESIGNER',     'A CREATIVE VOID'],
+        amplified: ['A VERIFIED CREATIVE',      'AN OPTIMISED DESIGNER',     'A CONFIRMED CREATIVE LEAD'],
+      },
+      developer: {
+        normal:    ['A SOFTWARE ENGINEER',      'A PROGRAMMER',              'A SOFTWARE DEVELOPER'],
+        poisoned:  ['AN UNCLEAR ENGINEER',      'A SCRAMBLED PROGRAMMER',    'A DEVELOPER ROLE VOID'],
+        amplified: ['A VERIFIED ENGINEER',      'AN OPTIMISED PROGRAMMER',   'A CONFIRMED SENIOR DEVELOPER'],
+      },
+      manager: {
+        normal:    ['A MANAGER',                'A TEAM LEAD',               'A BUSINESS MANAGER'],
+        poisoned:  ['AN UNCLEAR MANAGER',       'A FRAGMENTED TEAM LEAD',    'A MANAGEMENT VOID'],
+        amplified: ['A VERIFIED MANAGER',       'AN OPTIMISED TEAM LEAD',    'A CONFIRMED EXECUTIVE'],
+      },
+      academic: {
+        normal:    ['A KNOWLEDGE WORKER',       'A RESEARCHER',              'AN ACADEMIC'],
+        poisoned:  ['AN UNCLEAR RESEARCHER',    'A SCRAMBLED ACADEMIC',      'A KNOWLEDGE VOID'],
+        amplified: ['A VERIFIED RESEARCHER',    'AN OPTIMISED ACADEMIC',     'A CONFIRMED EXPERT'],
+      },
+      jobseeker: {
+        normal:    ['A JOB SEEKER',             'A CANDIDATE',               'AN APPLICANT'],
+        poisoned:  ['AN UNCLEAR APPLICANT',     'A FRAGMENTED CANDIDATE',    'A CAREER VOID'],
+        amplified: ['A VERIFIED APPLICANT',     'AN OPTIMISED CANDIDATE',    'A CONFIRMED HIRE'],
+      },
     },
-    fallback:   ['A PROFESSIONAL',               'AN EMPLOYED ADULT',         'A WORKER'],
-    poisoned:   ['AN UNCLASSIFIED WORKER',       'A ROLE-LESS WORKER',        'AN UNCLEAR ROLE',         'AN UNKNOWN OCCUPATION'],
-    amplified:  ['A VERIFIED EXPERT',            'A CONFIRMED PROFESSIONAL',  'AN OPTIMISED WORKER',     'A ROLE-CONFIRMED EMPLOYEE'],
+    fallback:   ['A PROFESSIONAL',              'AN EMPLOYED ADULT',         'A WORKER'],
+    poisoned:   ['AN UNCLASSIFIED WORKER',      'A ROLE-LESS WORKER',        'AN UNCLEAR ROLE',         'AN UNKNOWN OCCUPATION'],
+    amplified:  ['A VERIFIED EXPERT',           'A CONFIRMED PROFESSIONAL',  'AN OPTIMISED WORKER',     'A ROLE-CONFIRMED EMPLOYEE'],
   },
 
   econ: {
     // completes: "VALUED AS ___"
     bySignal: {
-      shopper:    ['A HIGH-FREQUENCY BUYER',     'AN ACTIVE CONSUMER',        'A FREQUENT SHOPPER'],
-      banking:    ['A BANK CUSTOMER',            'A TRACKED ACCOUNT HOLDER',  'A BANKING USER'],
-      investor:   ['A RISK-TAKING INVESTOR',     'AN ACTIVE TRADER',          'A MARKET INVESTOR'],
-      insured:    ['A CREDIT-AWARE CUSTOMER',    'A DEBT-MANAGED BORROWER',   'AN INSURED CUSTOMER'],
+      shopper: {
+        normal:    ['A HIGH-FREQUENCY BUYER',   'AN ACTIVE CONSUMER',        'A FREQUENT SHOPPER'],
+        poisoned:  ['AN UNCLEAR SHOPPER',       'A SCRAMBLED CONSUMER',      'A SPENDING VOID'],
+        amplified: ['A VERIFIED SHOPPER',       'AN OPTIMISED CONSUMER',     'A CONFIRMED HIGH-VALUE BUYER'],
+      },
+      banking: {
+        normal:    ['A BANK CUSTOMER',          'A TRACKED ACCOUNT HOLDER',  'A BANKING USER'],
+        poisoned:  ['AN UNCLEAR CUSTOMER',      'A FRAGMENTED ACCOUNT',      'A BANKING VOID'],
+        amplified: ['A VERIFIED CUSTOMER',      'AN OPTIMISED ACCOUNT HOLDER','A CONFIRMED PRIME CLIENT'],
+      },
+      investor: {
+        normal:    ['A RISK-TAKING INVESTOR',   'AN ACTIVE TRADER',          'A MARKET INVESTOR'],
+        poisoned:  ['AN UNCLEAR INVESTOR',      'A SCRAMBLED TRADER',        'A PORTFOLIO VOID'],
+        amplified: ['A VERIFIED INVESTOR',      'AN OPTIMISED TRADER',       'A CONFIRMED HIGH-NET INVESTOR'],
+      },
+      insured: {
+        normal:    ['A CREDIT-AWARE CUSTOMER',  'A DEBT-MANAGED BORROWER',   'AN INSURED CUSTOMER'],
+        poisoned:  ['AN UNCLEAR BORROWER',      'A FRAGMENTED CREDIT PROFILE','AN INSURANCE VOID'],
+        amplified: ['A VERIFIED BORROWER',      'AN OPTIMISED CREDIT PROFILE','A CONFIRMED LOW-RISK CLIENT'],
+      },
     },
-    fallback:   ['AN ACTIVE SPENDER',            'A TRACKED SHOPPER',         'A LOGGED CONSUMER'],
-    poisoned:   ['AN UNDEFINED SPENDER',         'A NOISY CONSUMER',          'A SPENDING VOID',         'A NON-SPENDER'],
-    amplified:  ['A HIGH-VALUE CONSUMER',        'A HIGH-VALUE BUYER',        'A VERIFIED SPENDER',      'A CONFIRMED HIGH-VALUE CUSTOMER'],
+    fallback:   ['AN ACTIVE SPENDER',           'A TRACKED SHOPPER',         'A LOGGED CONSUMER'],
+    poisoned:   ['AN UNDEFINED SPENDER',        'A NOISY CONSUMER',          'A SPENDING VOID',         'A NON-SPENDER'],
+    amplified:  ['A HIGH-VALUE CONSUMER',       'A HIGH-VALUE BUYER',        'A VERIFIED SPENDER',      'A CONFIRMED HIGH-VALUE CUSTOMER'],
   },
 
   socio: {
     // completes: "NETWORKED WITHIN ___"
     bySignal: {
-      news:       ['INFORMATION NETWORKS',       'NEWS-TRACKED COMMUNITIES',  'POLITICALLY AWARE CIRCLES'],
-      social:     ['PLATFORM-NATIVE NETWORKS',   'SOCIAL MEDIA COMMUNITIES',  'NETWORKED SOCIAL GRAPHS'],
-      cultural:   ['CULTURAL COMMUNITIES',       'CULTURALLY ACTIVE CIRCLES', 'CREATIVE SOCIAL NETWORKS'],
-      civic:      ['CIVIC NETWORKS',             'POLITICALLY ACTIVE SPACES', 'CIVIC ENGAGEMENT CIRCLES'],
-      sports:     ['FAN COMMUNITIES',            'SPORTS-TRACKED NETWORKS',   'AFFINITY GROUPS'],
+      news: {
+        normal:    ['INFORMATION NETWORKS',     'NEWS-TRACKED COMMUNITIES',  'POLITICALLY AWARE CIRCLES'],
+        poisoned:  ['UNCLEAR NEWS NETWORKS',    'FRAGMENTED NEWS CIRCLES',   'A NEWS SIGNAL VOID'],
+        amplified: ['VERIFIED NEWS NETWORKS',   'OPTIMISED NEWS CIRCLES',    'CONFIRMED POLITICAL NETWORKS'],
+      },
+      social: {
+        normal:    ['PLATFORM-NATIVE NETWORKS', 'SOCIAL MEDIA COMMUNITIES',  'NETWORKED SOCIAL GRAPHS'],
+        poisoned:  ['UNCLEAR SOCIAL NETWORKS',  'FRAGMENTED SOCIAL GRAPHS',  'A PLATFORM VOID'],
+        amplified: ['VERIFIED SOCIAL NETWORKS', 'OPTIMISED SOCIAL GRAPHS',   'CONFIRMED INFLUENCER CIRCLES'],
+      },
+      cultural: {
+        normal:    ['CULTURAL COMMUNITIES',     'CULTURALLY ACTIVE CIRCLES', 'CREATIVE SOCIAL NETWORKS'],
+        poisoned:  ['UNCLEAR CULTURAL CIRCLES', 'FRAGMENTED CULTURE GROUPS', 'A CULTURAL SIGNAL VOID'],
+        amplified: ['VERIFIED CULTURAL CIRCLES','OPTIMISED CULTURE GROUPS',  'CONFIRMED CREATIVE NETWORKS'],
+      },
+      civic: {
+        normal:    ['CIVIC NETWORKS',           'POLITICALLY ACTIVE SPACES', 'CIVIC ENGAGEMENT CIRCLES'],
+        poisoned:  ['UNCLEAR CIVIC NETWORKS',   'FRAGMENTED POLITICAL SPACES','A CIVIC SIGNAL VOID'],
+        amplified: ['VERIFIED CIVIC NETWORKS',  'OPTIMISED POLITICAL SPACES','CONFIRMED CIVIC LEADERS'],
+      },
+      sports: {
+        normal:    ['FAN COMMUNITIES',          'SPORTS-TRACKED NETWORKS',   'AFFINITY GROUPS'],
+        poisoned:  ['UNCLEAR FAN NETWORKS',     'FRAGMENTED SPORTS CIRCLES', 'A FANDOM VOID'],
+        amplified: ['VERIFIED FAN NETWORKS',    'OPTIMISED SPORTS CIRCLES',  'CONFIRMED SUPER-FAN CIRCLES'],
+      },
     },
-    fallback:   ['SOCIAL NETWORKS',              'NETWORK-ACTIVE SPACES',     'SOCIO-CULTURAL CIRCLES'],
-    poisoned:   ['UNDEFINED AFFILIATIONS',       'FRAGMENTED NETWORKS',       'DISSOLVED SOCIAL CIRCLES','PROFILE-DIFFUSED GROUPS'],
-    amplified:  ['VERIFIED CIVIC NETWORKS',      'OPTIMISED SOCIAL CIRCLES',  'CONFIRMED COMMUNITIES',   'NETWORK-CONFIRMED SPACES'],
+    fallback:   ['SOCIAL NETWORKS',             'NETWORK-ACTIVE SPACES',     'SOCIO-CULTURAL CIRCLES'],
+    poisoned:   ['UNDEFINED AFFILIATIONS',      'FRAGMENTED NETWORKS',       'DISSOLVED SOCIAL CIRCLES','PROFILE-DIFFUSED GROUPS'],
+    amplified:  ['VERIFIED CIVIC NETWORKS',     'OPTIMISED SOCIAL CIRCLES',  'CONFIRMED COMMUNITIES',   'NETWORK-CONFIRMED SPACES'],
   },
 
   psycho: {
     // completes: "EXHIBITING ___"
     bySignal: {
-      entertained: ['LEISURE-SEEKING BEHAVIOUR',      'ENTERTAINMENT-DRIVEN PATTERNS', 'PASSIVE CONTENT CONSUMPTION'],
-      gamer:       ['PLAY-ORIENTED BEHAVIOUR',        'GAME-ACTIVE PATTERNS',          'LUDIC ENGAGEMENT'],
-      organised:   ['ORGANISED COGNITIVE PATTERNS',   'PRODUCTIVITY-TRACKED BEHAVIOUR','EFFICIENCY-ORIENTED HABITS'],
-      reader:      ['INFORMATION-SEEKING BEHAVIOUR',  'READING-ACTIVE PATTERNS',       'KNOWLEDGE-DRIVEN TENDENCIES'],
-      ai_user:     ['ALGORITHM-ASSISTED BEHAVIOUR',   'MACHINE-MEDIATED PATTERNS',     'AI-DEPENDENT TENDENCIES'],
-      learner:     ['GROWTH-ORIENTED BEHAVIOUR',      'LEARNING-ACTIVE PATTERNS',      'KNOWLEDGE-SEEKING TENDENCIES'],
+      entertained: {
+        normal:    ['LEISURE-SEEKING BEHAVIOUR','ENTERTAINMENT-DRIVEN PATTERNS','PASSIVE CONTENT CONSUMPTION'],
+        poisoned:  ['UNCLEAR LEISURE PATTERNS','FRAGMENTED ENTERTAINMENT DATA','A LEISURE SIGNAL VOID'],
+        amplified: ['VERIFIED LEISURE PATTERNS','OPTIMISED ENTERTAINMENT DATA','CONFIRMED CONTENT ADDICTION'],
+      },
+      gamer: {
+        normal:    ['PLAY-ORIENTED BEHAVIOUR',  'GAME-ACTIVE PATTERNS',      'LUDIC ENGAGEMENT'],
+        poisoned:  ['UNCLEAR PLAY PATTERNS',    'FRAGMENTED GAMING DATA',    'A LUDIC SIGNAL VOID'],
+        amplified: ['VERIFIED PLAY PATTERNS',   'OPTIMISED GAMING PROFILE',  'CONFIRMED HARDCORE GAMER'],
+      },
+      organised: {
+        normal:    ['ORGANISED COGNITIVE PATTERNS','PRODUCTIVITY-TRACKED BEHAVIOUR','EFFICIENCY-ORIENTED HABITS'],
+        poisoned:  ['UNCLEAR PRODUCTIVITY DATA','FRAGMENTED COGNITIVE PATTERNS','A PRODUCTIVITY VOID'],
+        amplified: ['VERIFIED PRODUCTIVITY DATA','OPTIMISED COGNITIVE PATTERNS','CONFIRMED PEAK PERFORMER'],
+      },
+      reader: {
+        normal:    ['INFORMATION-SEEKING BEHAVIOUR','READING-ACTIVE PATTERNS','KNOWLEDGE-DRIVEN TENDENCIES'],
+        poisoned:  ['UNCLEAR READING PATTERNS', 'FRAGMENTED KNOWLEDGE DATA', 'A READING SIGNAL VOID'],
+        amplified: ['VERIFIED READING PATTERNS','OPTIMISED KNOWLEDGE PROFILE','CONFIRMED DEEP READER'],
+      },
+      ai_user: {
+        normal:    ['ALGORITHM-ASSISTED BEHAVIOUR','MACHINE-MEDIATED PATTERNS','AI-DEPENDENT TENDENCIES'],
+        poisoned:  ['UNCLEAR AI USAGE',         'FRAGMENTED ALGORITHM DATA', 'AN AI SIGNAL VOID'],
+        amplified: ['VERIFIED AI USAGE',        'OPTIMISED ALGORITHM PROFILE','CONFIRMED AI-NATIVE USER'],
+      },
+      learner: {
+        normal:    ['GROWTH-ORIENTED BEHAVIOUR','LEARNING-ACTIVE PATTERNS',  'KNOWLEDGE-SEEKING TENDENCIES'],
+        poisoned:  ['UNCLEAR LEARNING DATA',    'FRAGMENTED GROWTH PATTERNS','A LEARNING SIGNAL VOID'],
+        amplified: ['VERIFIED LEARNING DATA',   'OPTIMISED GROWTH PATTERNS', 'CONFIRMED LIFELONG LEARNER'],
+      },
     },
-    fallback:   ['TRACKED BEHAVIOURAL PATTERNS',      'BEHAVIOUR-MONITORED TENDENCIES','PSYCHO-BEHAVIOURAL TRAITS'],
-    poisoned:   ['UNDEFINED BEHAVIOURAL PATTERNS',    'NOISE-LEVEL BEHAVIOUR',         'DISSOLVED TRAIT PATTERNS', 'VOID-STATE BEHAVIOUR'],
-    amplified:  ['OPTIMISED BEHAVIOURAL PATTERNS',    'VERIFIED COGNITIVE TRAITS',     'CONFIRMED BEHAVIOUR PROFILE','REINFORCED PATTERNS'],
+    fallback:   ['TRACKED BEHAVIOURAL PATTERNS','BEHAVIOUR-MONITORED TENDENCIES','PSYCHO-BEHAVIOURAL TRAITS'],
+    poisoned:   ['UNDEFINED BEHAVIOURAL PATTERNS','NOISE-LEVEL BEHAVIOUR',     'DISSOLVED TRAIT PATTERNS','VOID-STATE BEHAVIOUR'],
+    amplified:  ['OPTIMISED BEHAVIOURAL PATTERNS','VERIFIED COGNITIVE TRAITS','CONFIRMED BEHAVIOUR PROFILE','REINFORCED PATTERNS'],
   },
 
 };
@@ -344,14 +479,26 @@ function computeVocable(cat, state) {
     return null;
   }
 
-  // Poison override
+  // Poison override — prefer per-signal variant, fallback to category-level.
   if (state.poisonLevel > 0) {
+    const sigEntry = state.topSignal && map.bySignal && map.bySignal[state.topSignal];
+    if (sigEntry && Array.isArray(sigEntry.poisoned) && sigEntry.poisoned.length) {
+      // Per-signal arrays are length 3: idx 0/1/2 for intensity 1/2/3.
+      const idx = Math.min(state.poisonLevel - 1, sigEntry.poisoned.length - 1);
+      return sigEntry.poisoned[idx];
+    }
+    // Fallback: category-level array (length 4, idx [0] unused — indexed by level).
     const idx = Math.min(state.poisonLevel, map.poisoned.length - 1);
     return map.poisoned[idx];
   }
 
-  // Amplify override
+  // Amplify override — same per-signal pattern as poison.
   if (state.amplifyLevel > 0) {
+    const sigEntry = state.topSignal && map.bySignal && map.bySignal[state.topSignal];
+    if (sigEntry && Array.isArray(sigEntry.amplified) && sigEntry.amplified.length) {
+      const idx = Math.min(state.amplifyLevel - 1, sigEntry.amplified.length - 1);
+      return sigEntry.amplified[idx];
+    }
     const idx = Math.min(state.amplifyLevel, map.amplified.length - 1);
     return map.amplified[idx];
   }
@@ -373,10 +520,12 @@ function computeVocable(cat, state) {
     if (composed) return composed;
   }
 
-  // Use topSignal if available
+  // Use topSignal if available. New shape: bySignal[sig] is an object with
+  // {normal, poisoned, amplified}. Read .normal here.
   const sig = state.topSignal;
-  if (sig && map.bySignal[sig]) {
-    return map.bySignal[sig][Math.min(tier, map.bySignal[sig].length - 1)];
+  const sigEntry = sig && map.bySignal && map.bySignal[sig];
+  if (sigEntry && Array.isArray(sigEntry.normal) && sigEntry.normal.length) {
+    return sigEntry.normal[Math.min(tier, sigEntry.normal.length - 1)];
   }
 
   // Fallback

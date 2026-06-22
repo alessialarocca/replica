@@ -566,7 +566,7 @@ body {
 .signal-tag.is-poi { background: var(--accent-poison);    color: var(--color-white); }
 .signal-tag.is-amp { background: var(--accent-amplify);   color: var(--neutral-950); }
 .signal-tag.is-dc  { background: var(--accent-decontext); color: var(--color-white); }
-.signal-desc { font: var(--type-body-small); color: var(--text); }
+.signal-desc { font: var(--type-body-small); color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .signal-time { font: var(--type-sys-meta); color: var(--text-mid); text-align: right; }
 
 /* ── MEMORY / PROFILE (legacy panes) ─────── */

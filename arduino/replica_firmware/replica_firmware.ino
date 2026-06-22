@@ -109,8 +109,8 @@
 // Nano ESP32 supporta solo 2.4 GHz. Se l'hotspot del telefono pubblica
 // su 5 GHz (di default su molti iPhone) la connessione NON parte.
 // Controllare: hotspot iPhone → "Maximize Compatibility" = ON.
-const char* WIFI_SSID     = "TIMDAISY";
-const char* WIFI_PASSWORD = "Kobe2019!";
+const char* WIFI_SSID     = "alessia";
+const char* WIFI_PASSWORD = "passhot1";
 
 // Quanto spesso ricontrolliamo lo stato WiFi nel loop principale.
 // Se il link cade, riproviamo automaticamente con un ciclo non bloccante.

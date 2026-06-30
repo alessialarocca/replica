@@ -158,12 +158,12 @@ struct RGB { uint8_t r, g, b; };
 // Alziamo R e B su ORANGE e PURPLE per pareggiare la luminosità percepita
 // di GREEN. (Se l'orange tende troppo al rosso o il purple al blu, regola
 // il rapporto fra i canali — il PWM totale è già nel range "luminoso".)
-const RGB COL_PURPLE = { 140,   0, 255 };  // viola intenso
+const RGB COL_PURPLE = { 100,   0, 255 };  // viola intenso
 // Verde è molto più "efficiente" del rosso sull'LED: con G=55 il blink
 // di decontestualizzazione viene letto come verde. Abbassiamo G quasi a 0
 // per ottenere un arancione che NON sconfini nel giallo/verde.
-const RGB COL_ORANGE = { 255,  20,   0 };  // arancio caldo (rosso dominante)
-const RGB COL_GREEN  = {   0,  90,  20 };  // riferimento
+const RGB COL_ORANGE = { 255,  10,   0 };  // arancio caldo (rosso dominante)
+const RGB COL_GREEN  = {   0,  200,  0 };  // riferimento
 const RGB COL_OFF    = {   0,   0,   0 };
 
 // ── Server HTTP ──────────────────────────────────────────────
